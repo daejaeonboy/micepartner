@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
   ArrowLeft,
-  Blocks,
   ChevronDown,
   ChevronRight,
   ChevronUp,
@@ -13,7 +12,7 @@ import {
   Layers3,
   LogOut,
   MenuSquare,
-  Package2,
+  MessagesSquare,
   Plus,
   Save,
   Search,
@@ -22,15 +21,6 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Link, useNavigate } from 'react-router-dom';
-import {
-  buildSitePageLayoutsFromTemplates,
-  defaultSitePageTemplates,
-  getTemplateLayoutSections,
-  resolveTemplateLayout,
-  resolveTemplateSectionsForPage,
-  templateCatalog,
-  templateCatalogMap,
-} from '../content/publicPageLayouts';
 import { PageMeta } from '../components/PageMeta';
 import { useSiteContent } from '../context/SiteContentContext';
 import { clearAdminToken, getAdminToken } from '../lib/adminSession';
@@ -45,13 +35,9 @@ import {
 } from '../lib/api';
 import type { AdminUser } from '../types/admin';
 import type { EditorPageId, SiteEditorConfig } from '../types/editorConfig';
-import type { CustomPageContent, CustomPageSection, SitePageContent } from '../types/siteContent';
+import type { SitePageContent } from '../types/siteContent';
 import type { Inquiry, InquiryStatus } from '../types/inquiry';
-import type { PublicPageLayoutKey } from '../types/pageLayout';
-import type { SitePageTemplates, SiteTemplateLayouts, TemplateCatalogId } from '../types/pageTemplate';
 import type { SiteCopy } from '../types/siteCopy';
-import { findCustomPageByPath, getCustomEditorPageId, isImplementedPublicPath, normalizeCustomPagePath } from '../lib/customPages';
-import { buildClonedCustomPageFromSource } from '../lib/pageTemplatePresets';
 
 const fadeUp = {
   initial: { opacity: 0, y: 24 },
@@ -71,7 +57,7 @@ type EditableSectionDefinition = {
   fields: Array<[string, string]>;
 };
 
-type EditableSectionKey = Exclude<keyof SitePageContent, 'customPages'>;
+type EditableSectionKey = keyof SitePageContent;
 
 const editableSections: EditableSectionDefinition[] = [
   {
@@ -92,18 +78,6 @@ const editableSections: EditableSectionDefinition[] = [
       ['processDescription', '비즈니스 파트너 설명'],
       ['ctaTitle', '하단 CTA 제목'],
       ['ctaDescription', '하단 CTA 설명'],
-    ],
-  },
-  {
-    key: 'services',
-    title: '서비스',
-    fields: [
-      ['introTitle', '상단 제목'],
-      ['introDescription', '상단 설명'],
-      ['modulesTitle', '서비스 영역 제목'],
-      ['modulesDescription', '서비스 영역 설명'],
-      ['flowTitle', '진행 흐름 제목'],
-      ['flowDescription', '진행 흐름 설명'],
     ],
   },
   {
@@ -173,6 +147,16 @@ const editableSections: EditableSectionDefinition[] = [
       ['introTitle', '상단 제목'],
       ['introDescription', '상단 설명'],
     ],
+    },
+    {
+    key: 'support',
+    title: '고객센터',
+    fields: [
+      ['introTitle', '상단 제목'],
+      ['introDescription', '상단 설명'],
+      ['faqSectionTitle', '자주 묻는 질문 제목'],
+      ['faqSectionDescription', '자주 묻는 질문 설명'],
+    ],
   },
   {
     key: 'menus',
@@ -192,21 +176,21 @@ const defaultPageLabels: Record<EditableSectionKey, string> = {
   cases: '포트폴리오',
   resources: '정보센터',
   about: '회사소개',
-  contact: '문의',
   members: 'MICE 회원',
+  support: '고객센터',
+  contact: '문의',
   menus: '메뉴 관리',
   footer: '푸터',
 };
 
-type AdminView = 'overview' | 'content' | 'templates' | 'inquiries';
+type AdminView = 'overview' | 'content' | 'faq' | 'inquiries';
 
 const menuLinkedPagePaths: Partial<Record<EditableSectionKey, string>> = {
-  services: '/services',
   cases: '/cases',
   resources: '/resources',
   about: '/about',
-  contact: '/contact',
   members: '/members',
+  support: '/faq',
 };
 
 function normalizeEditorMenuPath(path: string) {
@@ -216,14 +200,16 @@ function normalizeEditorMenuPath(path: string) {
 
 const lockedManagedPaths = new Set([
   '/',
-  '/services',
   '/cases',
+  '/cases/:slug',
   '/resources',
   '/resources/notices',
+  '/resources/notices/:slug',
   '/resources/files',
+  '/resources/files/:slug',
   '/about',
   '/members',
-  '/contact',
+  '/faq',
 ]);
 
 function isLockedManagedPath(path: string) {
@@ -284,37 +270,20 @@ type NestedGroupItemMeta = {
   index: number;
 };
 
-type TemplateOverviewItem = {
-  label: string;
-  path: string;
-  pageKey?: PublicPageLayoutKey;
-  templateId: TemplateCatalogId;
-  editorPage?: EditorPageId;
-};
-
-type TemplatePendingTarget = {
-  label: string;
-  path: string;
-  source: string;
-};
-
 type EditorPageDefinition = {
   id: EditorPageId;
   title: string;
   icon: LucideIcon;
   contentKey: EditableSectionKey;
   groupIds: string[];
-  pageKey?: PublicPageLayoutKey;
-  layoutGroupMap?: Record<string, string[]>;
-  templatePath?: string;
+  path?: string;
   helperText?: string;
   isCommon?: boolean;
-  isCustom?: boolean;
-  customPath?: string;
 };
 
 const imageFieldLabels: Record<string, string> = {
   heroImageUrl: '대표 이미지',
+  servicePreviewImageUrl: '섹션 이미지',
   ctaImageUrl: 'CTA 이미지',
   coverImageUrl: '커버 이미지',
   imageUrl: '이미지',
@@ -323,6 +292,7 @@ const imageFieldLabels: Record<string, string> = {
 };
 
 const imageGroupLabels: Record<string, string> = {
+  heroSlides: '히어로 슬라이드',
   positioningCards: '브랜드 소개 카드',
   modules: '서비스 카드',
   entries: '포트폴리오',
@@ -337,6 +307,7 @@ const imageGroupLabels: Record<string, string> = {
 
 const textFieldLabels: Record<string, string> = {
   heroEyebrow: '상단 라벨',
+  heroSlides: '히어로 슬라이드',
   servicePreviewEyebrow: '섹션 라벨',
   heroBadge: '배지 문구',
   positioningCards: '브랜드 소개 카드',
@@ -379,6 +350,8 @@ const textFieldLabels: Record<string, string> = {
   searchButtonLabel: '검색 버튼 문구',
   totalLabel: '총 개수 라벨',
   currentPageLabel: '페이지 안내 라벨',
+  emptyStateTitle: '빈 상태 제목',
+  emptyStateDescription: '빈 상태 설명',
   introEyebrow: '상단 라벨',
   modulesEyebrow: '섹션 라벨',
   flowEyebrow: '섹션 라벨',
@@ -451,8 +424,8 @@ const textFieldLabels: Record<string, string> = {
 
 const contentSectionGroups: Record<EditableSectionKey, ContentSectionGroup[]> = {
   home: [
-    { id: 'hero', title: '히어로', description: '메인 첫 화면 카피와 대표 이미지를 관리합니다.', copyFields: ['heroTitle', 'heroDescription'], contentPrefixes: [['heroEyebrow'], ['heroBadge']], imagePrefixes: [['heroImageUrl']] },
-    { id: 'service-preview', title: '서비스 프리뷰', description: '서비스 프리뷰 제목, 버튼 문구와 카드 이미지를 관리합니다.', copyFields: ['servicePreviewTitle', 'servicePreviewDescription'], contentPrefixes: [['servicePreviewEyebrow'], ['primaryCtaLabel']], imagePrefixes: [['modules']] },
+    { id: 'hero', title: '히어로', description: '메인 첫 화면 슬라이드와 공통 히어로 문구를 관리합니다.', copyFields: [], contentPrefixes: [['heroEyebrow'], ['heroBadge'], ['heroSlides']], imagePrefixes: [['heroSlides']] },
+    { id: 'service-preview', title: '서비스 프리뷰', description: '서비스 프리뷰 문구, 버튼 문구와 대표 이미지를 관리합니다.', copyFields: ['servicePreviewTitle', 'servicePreviewDescription'], contentPrefixes: [['servicePreviewEyebrow'], ['primaryCtaLabel']], imagePrefixes: [['servicePreviewImageUrl']] },
     { id: 'positioning', title: '브랜드 소개', description: '브랜드 포지셔닝 문구와 소개 카드 이미지를 관리합니다.', copyFields: ['positioningTitle', 'positioningDescription'], contentPrefixes: [['positioningCards']], imagePrefixes: [['positioningCards']] },
     { id: 'portfolio-preview', title: '포트폴리오 프리뷰', description: '포트폴리오 소개 문구와 메인 카드 이미지를 관리합니다.', copyFields: ['portfolioPreviewTitle', 'portfolioPreviewDescription'], contentPrefixes: [['secondaryCtaLabel']], imagePrefixes: [['entries']] },
     { id: 'resources-preview', title: '정보센터 프리뷰', description: '메인에 노출되는 정보센터 소개 문구와 카드 이미지, 카드 텍스트를 관리합니다.', copyFields: ['resourcesPreviewTitle', 'resourcesPreviewDescription'], contentPrefixes: [['items']], imagePrefixes: [['items']] },
@@ -466,10 +439,9 @@ const contentSectionGroups: Record<EditableSectionKey, ContentSectionGroup[]> = 
     { id: 'flow', title: '진행 흐름', description: '서비스 진행 흐름 문구를 관리합니다.', copyFields: ['flowTitle', 'flowDescription'], contentPrefixes: [['flowEyebrow'], ['flowSteps']], imagePrefixes: [] },
   ],
   cases: [
-    { id: 'intro', title: '상단 소개', description: '포트폴리오 페이지 소개 문구를 관리합니다.', copyFields: ['introTitle', 'introDescription'], contentPrefixes: [['introEyebrow']], imagePrefixes: [] },
-    { id: 'categories', title: '카테고리', description: '포트폴리오 카테고리 소개 문구를 관리합니다.', copyFields: ['categoriesTitle', 'categoriesDescription'], contentPrefixes: [['categoriesEyebrow'], ['allCategoryLabel'], ['categories']], imagePrefixes: [] },
-    { id: 'cards', title: '사례 카드', description: '사례 소개 문구와 대표 이미지를 관리합니다.', copyFields: ['cardsTitle', 'cardsDescription'], contentPrefixes: [['cardsEyebrow'], ['detailLinkLabel'], ['emptyStateMessage'], ['entries']], imagePrefixes: [['entries']] },
-    { id: 'owner', title: '하단 안내', description: '하단 안내 문구를 관리합니다.', copyFields: ['ownerTitle', 'ownerDescription'], contentPrefixes: [], imagePrefixes: [] },
+    { id: 'intro', title: '상단 소개', description: '포트폴리오 페이지 소개 문구와 검색 영역 문구를 관리합니다.', copyFields: ['introTitle', 'introDescription'], contentPrefixes: [['searchPlaceholder'], ['searchButtonLabel'], ['totalLabel'], ['currentPageLabel']], imagePrefixes: [] },
+    { id: 'categories', title: '카테고리', description: '포트폴리오 카테고리 구조를 관리합니다.', copyFields: [], contentPrefixes: [['allCategoryLabel'], ['categories']], imagePrefixes: [] },
+    { id: 'cards', title: '사례 카드', description: '사례 카드와 빈 상태 안내, 대표 이미지를 관리합니다.', copyFields: [], contentPrefixes: [['emptyStateMessage'], ['emptyStateDescription'], ['entries']], imagePrefixes: [['entries']] },
   ],
   resources: [
     { id: 'notices', title: '소식 페이지', description: '정보센터 > 소식 페이지 문구와 공지 상세 이미지를 관리합니다.', copyFields: ['noticesTitle', 'noticesDescription'], contentPrefixes: [['notices']], imagePrefixes: [['notices']] },
@@ -482,6 +454,11 @@ const contentSectionGroups: Record<EditableSectionKey, ContentSectionGroup[]> = 
     { id: 'strength', title: '강점', description: '강점 소개 문구와 강점 카드 이미지를 관리합니다.', copyFields: ['strengthTitle', 'strengthDescription'], contentPrefixes: [['strengthEyebrow'], ['highlights']], imagePrefixes: [['highlights']] },
     { id: 'process', title: '프로세스', description: '회사소개 하단 프로세스 문구를 관리합니다.', copyFields: ['processTitle', 'processDescription'], contentPrefixes: [['processEyebrow'], ['processSteps']], imagePrefixes: [] },
   ],
+  support: [
+    { id: 'intro', title: '상단 소개', description: '고객센터 페이지 상단 문구를 관리합니다.', copyFields: ['introTitle', 'introDescription'], contentPrefixes: [['introEyebrow']], imagePrefixes: [] },
+    { id: 'contact', title: '연락 안내', description: '고객센터 연락처와 채팅 연결 문구를 관리합니다.', copyFields: [], contentPrefixes: [['phone'], ['hours'], ['chatLabel'], ['chatHref']], imagePrefixes: [] },
+    { id: 'faq', title: 'FAQ', description: 'FAQ 소개 문구와 카테고리, 질문/답변 목록을 관리합니다.', copyFields: ['faqSectionTitle', 'faqSectionDescription'], contentPrefixes: [['faqCategories'], ['faqs']], imagePrefixes: [] },
+  ],
   contact: [
     { id: 'intro', title: '상단 소개', description: '문의 페이지 상단 문구를 관리합니다.', copyFields: ['introTitle', 'introDescription'], contentPrefixes: [['introEyebrow']], imagePrefixes: [] },
     { id: 'visual', title: '대표 이미지', description: '문의 페이지 대표 이미지를 관리합니다.', copyFields: [], contentPrefixes: [], imagePrefixes: [['heroImageUrl']] },
@@ -490,7 +467,7 @@ const contentSectionGroups: Record<EditableSectionKey, ContentSectionGroup[]> = 
     { id: 'guide-cards', title: '안내 카드', description: '진행 방식과 체크리스트 카드 제목을 관리합니다.', copyFields: ['processCardTitle', 'checklistCardTitle', 'placeholderCardTitle'], contentPrefixes: [['responseSteps'], ['checklist'], ['contactInfo']], imagePrefixes: [] },
   ],
   members: [
-    { id: 'intro', title: '상단 소개', description: '회원사 소개 페이지 상단 문구와 검색 영역 문구를 관리합니다.', copyFields: ['introTitle', 'introDescription'], contentPrefixes: [['introEyebrow'], ['filterAllLabel'], ['searchPlaceholder'], ['searchButtonLabel'], ['totalLabel'], ['currentPageLabel']], imagePrefixes: [] },
+    { id: 'intro', title: '상단 소개', description: '회원사 소개 페이지 상단 문구와 검색 영역 문구를 관리합니다.', copyFields: ['introTitle', 'introDescription'], contentPrefixes: [['filterAllLabel'], ['searchPlaceholder'], ['searchButtonLabel'], ['totalLabel'], ['currentPageLabel'], ['emptyStateTitle'], ['emptyStateDescription']], imagePrefixes: [] },
     { id: 'companies', title: '회원사 목록', description: '회원사 카드 문구와 로고 이미지를 관리합니다.', copyFields: [], contentPrefixes: [['companies']], imagePrefixes: [['companies']] },
   ],
   menus: [
@@ -502,39 +479,8 @@ const contentSectionGroups: Record<EditableSectionKey, ContentSectionGroup[]> = 
   ],
 };
 
-function resolveEditorPageGroupOrder(
-  page: EditorPageDefinition,
-  templates: SitePageTemplates,
-  templateLayouts: SiteTemplateLayouts,
-) {
-  if (!page.pageKey || !page.templatePath) {
-    return [...page.groupIds];
-  }
-
-  const templateId = (templates[page.templatePath] || defaultSitePageTemplates[page.templatePath]) as TemplateCatalogId;
-  const runtimeSections = resolveTemplateSectionsForPage(page.pageKey, templateId, templateLayouts).filter((section) => section.visible);
-  const allowedGroups = new Set(page.groupIds);
-  const orderedGroupIds: string[] = [];
-
-  runtimeSections.forEach((section) => {
-    const mappedGroups = page.layoutGroupMap?.[section.id] || [section.id];
-
-    mappedGroups.forEach((groupId) => {
-      if (!allowedGroups.has(groupId) || orderedGroupIds.includes(groupId)) {
-        return;
-      }
-
-      orderedGroupIds.push(groupId);
-    });
-  });
-
-  page.groupIds.forEach((groupId) => {
-    if (!orderedGroupIds.includes(groupId)) {
-      orderedGroupIds.push(groupId);
-    }
-  });
-
-  return orderedGroupIds;
+function resolveEditorPageGroupOrder(page: EditorPageDefinition) {
+  return [...page.groupIds];
 }
 
 function getArrayItemLabel(value: unknown, index: number) {
@@ -565,56 +511,6 @@ function getGroupedArrayItemLabel(parentLabel: string | undefined, value: unknow
   }
 
   return `항목 ${index + 1}`;
-}
-
-const customSectionSettingLabels: Record<string, string> = {
-  variant: '섹션 표시 방식',
-  actionLabel: '상단 이동 버튼 문구',
-  actionHref: '상단 이동 버튼 링크',
-  allCategoryLabel: '전체 카테고리 문구',
-  searchPlaceholder: '검색창 플레이스홀더',
-  searchButtonLabel: '검색 버튼 문구',
-  searchOpenLabel: '검색창 열기 문구',
-  searchCloseLabel: '검색창 닫기 문구',
-  clearSearchLabel: '검색어 지우기 문구',
-  loadMoreLabel: '더 보기 버튼 문구',
-  emptyMessage: '빈 목록 안내 문구',
-  emptyTitle: '빈 목록 제목',
-  emptyDescription: '빈 목록 설명',
-  filterAllLabel: '전체 필터 문구',
-  totalLabel: '전체 건수 문구',
-  currentPageLabel: '현재 페이지 문구',
-  listTitle: '왼쪽 카드 제목',
-  messageEyebrow: '오른쪽 카드 상단 라벨',
-  messageTitle: '오른쪽 카드 제목',
-  messageBody: '오른쪽 카드 본문',
-  organizationLabel: '회사명 라벨',
-  organizationPlaceholder: '회사명 플레이스홀더',
-  contactNameLabel: '담당자명 라벨',
-  contactNamePlaceholder: '담당자명 플레이스홀더',
-  emailLabel: '이메일 라벨',
-  emailPlaceholder: '이메일 플레이스홀더',
-  eventDateLabel: '행사 일정 라벨',
-  eventDatePlaceholder: '행사 일정 플레이스홀더',
-  messageLabel: '문의 내용 라벨',
-  messagePlaceholder: '문의 내용 플레이스홀더',
-  submitButtonLabel: '문의 버튼 문구',
-  submitPendingLabel: '문의 진행중 문구',
-  submitSuccessMessage: '문의 완료 문구',
-  processCardTitle: '진행 안내 카드 제목',
-  checklistCardTitle: '체크리스트 카드 제목',
-  placeholderCardTitle: '연락 정보 카드 제목',
-};
-
-function formatCustomSettingLabel(key: string) {
-  if (customSectionSettingLabels[key]) {
-    return customSectionSettingLabels[key];
-  }
-
-  return key
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/[-_]/g, ' ')
-    .trim();
 }
 
 function getTextFieldLabel(segment: string) {
@@ -857,6 +753,15 @@ function createEmptyMemberCompany() {
     address: '주소를 입력해 주세요.',
     phone: '전화번호를 입력해 주세요.',
     logoUrl: '',
+    updatedAt: '2026.03.12',
+  };
+}
+
+function createEmptyHeroSlide() {
+  return {
+    title: '새 히어로 슬라이드',
+    description: '이 슬라이드에 노출할 설명을 입력해 주세요.',
+    imageUrl: '',
   };
 }
 
@@ -887,44 +792,16 @@ function createEmptyFooterQuickLink() {
   };
 }
 
-function createEmptyCustomSectionItem() {
-  return {
-    kind: 'default',
-    title: '새 항목',
-    description: '설명을 입력해 주세요.',
-    details: '',
-    meta: '',
-    badge: '',
-    imageUrl: '',
-    href: '',
-  };
-}
-
-function updateCustomPageCollection(
-  customPages: CustomPageContent[],
-  path: string,
-  updater: (page: CustomPageContent) => CustomPageContent,
-) {
-  return customPages.map((page) => (page.path === path ? updater(page) : page));
-}
-
-function upsertCustomPage(customPages: CustomPageContent[], nextPage: CustomPageContent) {
-  const normalizedPath = normalizeCustomPagePath(nextPage.path);
-  const existingIndex = customPages.findIndex((page) => normalizeCustomPagePath(page.path) === normalizedPath);
-
-  if (existingIndex === -1) {
-    return [...customPages, nextPage];
+function getGroupArrayActionConfig(page: EditableSectionKey, groupId: string): ArrayGroupActionConfig | null {
+  if (page === 'home' && groupId === 'hero') {
+    return {
+      page: 'home',
+      arrayPath: ['heroSlides'],
+      label: '히어로 슬라이드 추가',
+      createItem: createEmptyHeroSlide,
+    };
   }
 
-  return customPages.map((page, index) => (index === existingIndex ? nextPage : page));
-}
-
-function removeCustomPageByPath(customPages: CustomPageContent[], path: string) {
-  const normalizedPath = normalizeCustomPagePath(path);
-  return customPages.filter((page) => normalizeCustomPagePath(page.path) !== normalizedPath);
-}
-
-function getGroupArrayActionConfig(page: EditableSectionKey, groupId: string): ArrayGroupActionConfig | null {
   if (page === 'members' && groupId === 'companies') {
     return {
       page: 'members',
@@ -992,7 +869,7 @@ function getImageAspectRatioHint(page: EditableSectionKey, path: ImagePathSegmen
     return '권장 비율 3:1, 최소 900x300';
   }
 
-  if (pathKey.includes('heroImageUrl') || pathKey.includes('ctaImageUrl')) {
+  if (pathKey.includes('heroImageUrl') || pathKey.includes('heroSlides') || pathKey.includes('ctaImageUrl')) {
     return '권장 비율 16:9, 최소 1600x900';
   }
 
@@ -1042,29 +919,94 @@ export function AdminPage() {
   const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
   const [draftSiteCopy, setDraftSiteCopy] = useState<SiteCopy>(siteCopy);
   const [draftSiteContent, setDraftSiteContent] = useState<SitePageContent>(siteData.content);
-  const [draftSiteTemplates, setDraftSiteTemplates] = useState<SitePageTemplates>(siteData.templates);
-  const [draftTemplateLayouts, setDraftTemplateLayouts] = useState<SiteTemplateLayouts>(siteData.templateLayouts);
   const [draftSiteEditor, setDraftSiteEditor] = useState<SiteEditorConfig>(siteData.editor);
+  const draftSiteCopyRef = useRef(draftSiteCopy);
+  const draftSiteContentRef = useRef(draftSiteContent);
+  const draftSiteEditorRef = useRef(draftSiteEditor);
   const [selectedEditorPage, setSelectedEditorPage] = useState<EditorPageId>('home');
   const [selectedCmsSectionId, setSelectedCmsSectionId] = useState<string>('');
   const [contentError, setContentError] = useState('');
   const [contentMessage, setContentMessage] = useState('');
   const [isSavingContent, setIsSavingContent] = useState(false);
   const [savingScopeKey, setSavingScopeKey] = useState('');
-  const [pendingTemplateSourceSelections, setPendingTemplateSourceSelections] = useState<Record<string, string>>({});
   const [activeView, setActiveView] = useState<AdminView>('overview');
   const [activeNavKey, setActiveNavKey] = useState('dashboard');
   const [uploadingFieldKey, setUploadingFieldKey] = useState('');
   const [deletingFieldKey, setDeletingFieldKey] = useState('');
 
+  // FAQ Management States
+  const [isFaqModalOpen, setIsFaqModalOpen] = useState(false);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [faqForm, setFaqForm] = useState({
+    category: '',
+    order: 8,
+    question: '',
+    answer: '',
+  });
+
+  useEffect(() => {
+    if (!faqForm.category && draftSiteContent.support.faqCategories.length > 0) {
+      setFaqForm(prev => ({
+        ...prev,
+        category: draftSiteContent.support.faqCategories.find(c => c !== '전체') || draftSiteContent.support.faqCategories[0]
+      }));
+    }
+  }, [draftSiteContent.support.faqCategories, faqForm.category]);
+
+  const [newCategoryName, setNewCategoryName] = useState('');
+
+  const handleAddCategory = () => {
+    if (!newCategoryName.trim()) return;
+    setDraftSiteContent(current => ({
+      ...current,
+      support: {
+        ...current.support,
+        faqCategories: [...current.support.faqCategories, newCategoryName.trim()]
+      }
+    }));
+    setNewCategoryName('');
+  };
+
+  const handleAddFaq = () => {
+    if (!faqForm.question.trim() || !faqForm.answer.trim()) return;
+    const newFaq = {
+      category: faqForm.category,
+      question: faqForm.question.trim(),
+      answer: faqForm.answer.trim(),
+    };
+    setDraftSiteContent(current => ({
+      ...current,
+      support: {
+        ...current.support,
+        faqs: [...current.support.faqs, newFaq]
+      }
+    }));
+    setIsFaqModalOpen(false);
+    setFaqForm({
+      category: '자주 묻는 질문',
+      order: 8,
+      question: '',
+      answer: '',
+    });
+  };
+
   useEffect(() => {
     setDraftSiteCopy(siteCopy);
     setDraftSiteContent(siteData.content);
-    setDraftSiteTemplates(siteData.templates);
-    setDraftTemplateLayouts(siteData.templateLayouts);
     setDraftSiteEditor(siteData.editor);
-    setPendingTemplateSourceSelections({});
-  }, [siteCopy, siteData.content, siteData.templates, siteData.templateLayouts, siteData.editor]);
+  }, [siteCopy, siteData.content, siteData.editor]);
+
+  useEffect(() => {
+    draftSiteCopyRef.current = draftSiteCopy;
+  }, [draftSiteCopy]);
+
+  useEffect(() => {
+    draftSiteContentRef.current = draftSiteContent;
+  }, [draftSiteContent]);
+
+  useEffect(() => {
+    draftSiteEditorRef.current = draftSiteEditor;
+  }, [draftSiteEditor]);
 
   useEffect(() => {
     if (!adminToken) {
@@ -1133,7 +1075,6 @@ export function AdminPage() {
 
     return {
       home: '메인 홈',
-      services: resolvedPageLabels.services,
       cases: resolvedPageLabels.cases,
       portfolioDetail: `${resolvedPageLabels.cases} 상세`,
       resourcesNotices: `${resolvedPageLabels.resources} ${noticesLabel}`,
@@ -1141,6 +1082,7 @@ export function AdminPage() {
       resourcesFiles: `${resolvedPageLabels.resources} ${filesLabel}`,
       resourceDetail: `${resolvedPageLabels.resources} ${filesLabel} 상세`,
       about: resolvedPageLabels.about,
+      support: resolvedPageLabels.support,
       members: resolvedPageLabels.members,
       contact: resolvedPageLabels.contact,
       footer: '푸터',
@@ -1149,187 +1091,106 @@ export function AdminPage() {
   }, [draftSiteContent.menus.headerItems, resolvedPageLabels]);
 
   const editorPages = useMemo<EditorPageDefinition[]>(
-    () => {
-      const builtInPages: EditorPageDefinition[] = [
-        {
-          id: 'home',
-          title: resolvedEditorPageTitles.home,
+    () => [
+      {
+        id: 'home',
+        title: resolvedEditorPageTitles.home,
         icon: FilePenLine,
         contentKey: 'home',
         groupIds: ['hero', 'service-preview', 'positioning', 'portfolio-preview', 'resources-preview', 'process', 'cta'],
-        pageKey: 'home',
-        layoutGroupMap: {
-          hero: ['hero'],
-          'service-preview': ['service-preview'],
-          positioning: ['positioning'],
-          'portfolio-preview': ['portfolio-preview'],
-          'resources-preview': ['resources-preview'],
-          partners: ['process'],
-          cta: ['cta'],
-        },
-        templatePath: '/',
+        path: '/',
         helperText: '메인 화면 섹션을 수정합니다.',
       },
-        {
-        id: 'services',
-        title: resolvedEditorPageTitles.services,
-        icon: Package2,
-        contentKey: 'services',
-        groupIds: ['intro', 'visual', 'modules', 'flow'],
-        pageKey: 'services',
-        layoutGroupMap: {
-          intro: ['intro'],
-          visual: ['visual'],
-          modules: ['modules'],
-          flow: ['flow'],
-        },
-        templatePath: '/services',
-        helperText: '서비스 소개 페이지를 수정합니다.',
-      },
-        {
-          id: 'cases',
-        title: resolvedEditorPageTitles.cases,
-        icon: Layers3,
-        contentKey: 'cases',
-        groupIds: ['intro', 'categories', 'cards', 'owner'],
-        pageKey: 'cases',
-        layoutGroupMap: {
-          intro: ['intro'],
-          categories: ['categories'],
-          cards: ['cards'],
-          'owner-note': ['owner'],
-        },
-        templatePath: '/cases',
-        helperText: '포트폴리오 목록 페이지를 수정합니다.',
-      },
-        {
-          id: 'portfolioDetail',
-        title: resolvedEditorPageTitles.portfolioDetail,
-        icon: Layers3,
-        contentKey: 'cases',
-        groupIds: ['cards'],
-        pageKey: 'portfolioDetail',
-        layoutGroupMap: {
-          intro: ['cards'],
-          visual: ['cards'],
-          overview: ['cards'],
-          narrative: ['cards'],
-          gallery: ['cards'],
-        },
-        templatePath: '/cases/:slug',
-        helperText: '포트폴리오 상세 페이지에서 사용하는 사례 정보와 갤러리를 수정합니다.',
-      },
-        {
-          id: 'resourcesNotices',
-        title: resolvedEditorPageTitles.resourcesNotices,
-        icon: Search,
-        contentKey: 'resources',
-        groupIds: ['notices', 'owner'],
-        pageKey: 'resourcesNotices',
-        layoutGroupMap: {
-          header: ['notices'],
-          board: ['notices'],
-          'owner-note': ['owner'],
-        },
-        templatePath: '/resources/notices',
-        helperText: '정보센터 소식 페이지를 수정합니다.',
-      },
-        {
-          id: 'noticeDetail',
-        title: resolvedEditorPageTitles.noticeDetail,
-        icon: Search,
-        contentKey: 'resources',
-        groupIds: ['notices'],
-        pageKey: 'noticeDetail',
-        layoutGroupMap: {
-          intro: ['notices'],
-          visual: ['notices'],
-          body: ['notices'],
-          attachments: ['notices'],
-        },
-        templatePath: '/resources/notices/:slug',
-        helperText: '소식 상세 페이지에서 사용하는 공지 본문, 이미지, 첨부 링크를 수정합니다.',
-      },
-        {
-          id: 'resourcesFiles',
-        title: resolvedEditorPageTitles.resourcesFiles,
-        icon: Search,
-        contentKey: 'resources',
-        groupIds: ['downloads', 'owner'],
-        pageKey: 'resourcesFiles',
-        layoutGroupMap: {
-          header: ['downloads'],
-          archive: ['downloads'],
-          'owner-note': ['owner'],
-        },
-        templatePath: '/resources/files',
-        helperText: '정보센터 자료 페이지를 수정합니다.',
-      },
-        {
-          id: 'resourceDetail',
-        title: resolvedEditorPageTitles.resourceDetail,
-        icon: Search,
-        contentKey: 'resources',
-        groupIds: ['downloads'],
-        pageKey: 'resourceDetail',
-        layoutGroupMap: {
-          intro: ['downloads'],
-          visual: ['downloads'],
-          info: ['downloads'],
-          download: ['downloads'],
-        },
-        templatePath: '/resources/files/:slug',
-        helperText: '자료 상세 페이지에서 사용하는 설명, 다운로드 링크, 대표 이미지를 수정합니다.',
-      },
-        {
-          id: 'about',
+      {
+        id: 'about',
         title: resolvedEditorPageTitles.about,
         icon: Users,
         contentKey: 'about',
         groupIds: ['intro', 'identity', 'strength', 'process'],
-        pageKey: 'about',
-        layoutGroupMap: {
-          intro: ['intro'],
-          visual: ['intro'],
-          identity: ['identity'],
-          strengths: ['strength'],
-          process: ['process'],
-        },
-        templatePath: '/about',
+        path: '/about',
         helperText: '회사소개 페이지를 수정합니다.',
+        imageFields: [
+          {
+            page: 'about',
+            path: ['heroImageUrl'],
+            label: '상단 비주얼 이미지',
+          },
+        ],
       },
-        {
-          id: 'members',
+      {
+        id: 'cases',
+        title: resolvedEditorPageTitles.cases,
+        icon: Layers3,
+        contentKey: 'cases',
+        groupIds: ['intro', 'categories', 'cards'],
+        path: '/cases',
+        helperText: '포트폴리오 목록 페이지를 수정합니다.',
+      },
+      {
+        id: 'portfolioDetail',
+        title: resolvedEditorPageTitles.portfolioDetail,
+        icon: Layers3,
+        contentKey: 'cases',
+        groupIds: ['cards'],
+        path: '/cases/:slug',
+        helperText: '포트폴리오 상세 페이지에서 사용하는 사례 정보와 갤러리를 수정합니다.',
+      },
+      {
+        id: 'members',
         title: resolvedEditorPageTitles.members,
         icon: Users,
         contentKey: 'members',
         groupIds: ['intro', 'companies'],
-        pageKey: 'members',
-        layoutGroupMap: {
-          intro: ['intro'],
-          directory: ['companies'],
-        },
-        templatePath: '/members',
+        path: '/members',
         helperText: 'MICE 회원 페이지를 수정합니다.',
       },
-        {
-        id: 'contact',
-        title: resolvedEditorPageTitles.contact,
-        icon: ClipboardList,
-        contentKey: 'contact',
-        groupIds: ['intro', 'visual', 'options', 'trust-form', 'guide-cards'],
-        pageKey: 'contact',
-        layoutGroupMap: {
-          intro: ['intro'],
-          visual: ['visual'],
-          options: ['options'],
-          form: ['trust-form', 'guide-cards'],
-        },
-        templatePath: '/contact',
-        helperText: '문의 페이지를 수정합니다.',
+      {
+        id: 'resourcesNotices',
+        title: resolvedEditorPageTitles.resourcesNotices,
+        icon: Search,
+        contentKey: 'resources',
+        groupIds: ['notices', 'owner'],
+        path: '/resources/notices',
+        helperText: '정보센터 소식 페이지를 수정합니다.',
       },
-        {
-          id: 'footer',
+      {
+        id: 'noticeDetail',
+        title: resolvedEditorPageTitles.noticeDetail,
+        icon: Search,
+        contentKey: 'resources',
+        groupIds: ['notices'],
+        path: '/resources/notices/:slug',
+        helperText: '소식 상세 페이지에서 사용하는 공지 본문, 이미지, 첨부 링크를 수정합니다.',
+      },
+      {
+        id: 'resourcesFiles',
+        title: resolvedEditorPageTitles.resourcesFiles,
+        icon: Search,
+        contentKey: 'resources',
+        groupIds: ['downloads', 'owner'],
+        path: '/resources/files',
+        helperText: '정보센터 자료 페이지를 수정합니다.',
+      },
+      {
+        id: 'resourceDetail',
+        title: resolvedEditorPageTitles.resourceDetail,
+        icon: Search,
+        contentKey: 'resources',
+        groupIds: ['downloads'],
+        path: '/resources/files/:slug',
+        helperText: '자료 상세 페이지에서 사용하는 설명, 다운로드 링크, 대표 이미지를 수정합니다.',
+      },
+      {
+        id: 'support',
+        title: resolvedEditorPageTitles.support,
+        icon: CircleHelp,
+        contentKey: 'support',
+        groupIds: ['intro', 'contact', 'faq'],
+        path: '/faq',
+        helperText: '고객센터 페이지를 수정합니다.',
+      },
+      {
+        id: 'footer',
         title: resolvedEditorPageTitles.footer,
         icon: ChevronDown,
         contentKey: 'footer',
@@ -1337,171 +1198,17 @@ export function AdminPage() {
         helperText: '공통 푸터 정보를 수정합니다.',
         isCommon: true,
       },
-        {
-          id: 'menus',
+      {
+        id: 'menus',
         title: resolvedEditorPageTitles.menus,
         icon: MenuSquare,
         contentKey: 'menus',
         groupIds: ['header-menu', 'footer-links'],
         isCommon: true,
-        },
-      ];
-      const customPages: EditorPageDefinition[] = draftSiteContent.customPages
-        .filter((page) => !isImplementedPublicPath(page.path))
-        .map((page) => ({
-        id: getCustomEditorPageId(page.path),
-        title: page.label,
-        icon: FilePenLine,
-        contentKey: 'home',
-        groupIds: page.sections.map((section) => section.id),
-        templatePath: page.path,
-        helperText: '커스텀 페이지 문구와 이미지를 섹션별로 수정합니다.',
-        isCustom: true,
-        customPath: page.path,
-      }));
-
-      return [...builtInPages, ...customPages];
-    },
-    [draftSiteContent.customPages, resolvedEditorPageTitles],
+      },
+    ],
+    [resolvedEditorPageTitles],
   );
-
-  const templateOverviewItems = useMemo<TemplateOverviewItem[]>(
-    () => {
-      const resourcesMenu = draftSiteContent.menus.headerItems.find((item) => normalizeEditorMenuPath(item.path) === '/resources');
-      const noticesLabel =
-        resourcesMenu?.children.find((item) => normalizeEditorMenuPath(item.path) === '/resources/notices')?.label || '소식';
-      const filesLabel =
-        resourcesMenu?.children.find((item) => normalizeEditorMenuPath(item.path) === '/resources/files')?.label || '자료';
-
-      const builtInItems: TemplateOverviewItem[] = [
-        {
-          label: '메인 홈',
-          path: '/',
-          pageKey: 'home',
-          templateId: draftSiteTemplates['/'] || defaultSitePageTemplates['/'],
-          editorPage: 'home',
-        },
-        {
-          label: resolvedPageLabels.services,
-          path: '/services',
-          pageKey: 'services',
-          templateId: draftSiteTemplates['/services'] || defaultSitePageTemplates['/services'],
-          editorPage: 'services',
-        },
-        {
-          label: resolvedPageLabels.cases,
-          path: '/cases',
-          pageKey: 'cases',
-          templateId: draftSiteTemplates['/cases'] || defaultSitePageTemplates['/cases'],
-          editorPage: 'cases',
-        },
-        {
-          label: `${resolvedPageLabels.cases} 상세`,
-          path: '/cases/:slug',
-          pageKey: 'portfolioDetail',
-          templateId: draftSiteTemplates['/cases/:slug'] || defaultSitePageTemplates['/cases/:slug'],
-          editorPage: 'portfolioDetail',
-        },
-        {
-          label: `${resolvedPageLabels.resources} > ${noticesLabel}`,
-          path: '/resources/notices',
-          pageKey: 'resourcesNotices',
-          templateId: draftSiteTemplates['/resources/notices'] || defaultSitePageTemplates['/resources/notices'],
-          editorPage: 'resourcesNotices',
-        },
-        {
-          label: `${resolvedPageLabels.resources} > ${noticesLabel} 상세`,
-          path: '/resources/notices/:slug',
-          pageKey: 'noticeDetail',
-          templateId: draftSiteTemplates['/resources/notices/:slug'] || defaultSitePageTemplates['/resources/notices/:slug'],
-          editorPage: 'noticeDetail',
-        },
-        {
-          label: `${resolvedPageLabels.resources} > ${filesLabel}`,
-          path: '/resources/files',
-          pageKey: 'resourcesFiles',
-          templateId: draftSiteTemplates['/resources/files'] || defaultSitePageTemplates['/resources/files'],
-          editorPage: 'resourcesFiles',
-        },
-        {
-          label: `${resolvedPageLabels.resources} > ${filesLabel} 상세`,
-          path: '/resources/files/:slug',
-          pageKey: 'resourceDetail',
-          templateId: draftSiteTemplates['/resources/files/:slug'] || defaultSitePageTemplates['/resources/files/:slug'],
-          editorPage: 'resourceDetail',
-        },
-        {
-          label: resolvedPageLabels.about,
-          path: '/about',
-          pageKey: 'about',
-          templateId: draftSiteTemplates['/about'] || defaultSitePageTemplates['/about'],
-          editorPage: 'about',
-        },
-        {
-          label: resolvedPageLabels.members,
-          path: '/members',
-          pageKey: 'members',
-          templateId: draftSiteTemplates['/members'] || defaultSitePageTemplates['/members'],
-          editorPage: 'members',
-        },
-        {
-          label: resolvedPageLabels.contact,
-          path: '/contact',
-          pageKey: 'contact',
-          templateId: draftSiteTemplates['/contact'] || defaultSitePageTemplates['/contact'],
-          editorPage: 'contact',
-        },
-      ];
-      const customItems: TemplateOverviewItem[] = draftSiteContent.customPages
-        .filter((page) => !isImplementedPublicPath(page.path))
-        .map((page) => ({
-          label: page.label,
-          path: page.path,
-          templateId: page.templateId,
-          editorPage: getCustomEditorPageId(page.path),
-        }));
-
-      return [...builtInItems, ...customItems];
-    },
-    [draftSiteContent.customPages, draftSiteContent.menus.headerItems, draftSiteTemplates, resolvedPageLabels],
-  );
-
-  const assignableTemplateTargets = useMemo<TemplatePendingTarget[]>(() => {
-    const implementedPaths = new Set(templateOverviewItems.map((item) => item.path));
-    const seenPaths = new Set<string>();
-    const targets: TemplatePendingTarget[] = [];
-
-    const pushTarget = (label: string, path: string, source: string) => {
-      const normalizedPath = normalizeEditorMenuPath(path);
-
-      if (!normalizedPath || normalizedPath === '/' || implementedPaths.has(normalizedPath) || seenPaths.has(normalizedPath)) {
-        return;
-      }
-
-      seenPaths.add(normalizedPath);
-      targets.push({
-        label: String(label || '새 메뉴').trim() || '새 메뉴',
-        path: normalizedPath,
-        source,
-      });
-    };
-
-    draftSiteContent.menus.headerItems.forEach((item) => {
-      if (!item.children.length) {
-        pushTarget(item.label, item.path, '헤더 메뉴');
-      }
-
-      item.children.forEach((child) => {
-        pushTarget(child.label, child.path, `${item.label} 하위 메뉴`);
-      });
-    });
-
-    draftSiteContent.menus.footerQuickLinks.forEach((item) => {
-      pushTarget(item.label, item.path, '푸터 바로가기');
-    });
-
-    return targets;
-  }, [draftSiteContent.menus.footerQuickLinks, draftSiteContent.menus.headerItems, templateOverviewItems]);
 
   const loadInquiries = async (currentAdminToken: string) => {
     setLoading(true);
@@ -1556,27 +1263,26 @@ export function AdminPage() {
   };
 
   const handleCopyFieldChange = (section: EditableSectionKey, field: string, value: string) => {
-    setDraftSiteCopy((current) => ({
-      ...current,
-      [section]: {
-        ...(current[section] as Record<string, string>),
-        [field]: value,
-      },
-    }));
+    setDraftSiteCopy((current) => {
+      const next = {
+        ...current,
+        [section]: {
+          ...(current[section] as Record<string, string>),
+          [field]: value,
+        },
+      };
+      draftSiteCopyRef.current = next;
+      return next;
+    });
   };
 
   const buildNextSiteData = (
-    nextContent = draftSiteContent,
-    nextTemplates = draftSiteTemplates,
-    nextTemplateLayouts = draftTemplateLayouts,
-    nextEditor = draftSiteEditor,
-    nextCopy = draftSiteCopy,
+    nextContent = draftSiteContentRef.current,
+    nextEditor = draftSiteEditorRef.current,
+    nextCopy = draftSiteCopyRef.current,
   ) => ({
     copy: nextCopy,
     content: nextContent,
-    layouts: buildSitePageLayoutsFromTemplates(nextTemplates, nextTemplateLayouts),
-    templates: nextTemplates,
-    templateLayouts: nextTemplateLayouts,
     editor: nextEditor,
   });
 
@@ -1595,8 +1301,6 @@ export function AdminPage() {
       updateSiteData(saved);
       setDraftSiteCopy(saved.copy);
       setDraftSiteContent(saved.content);
-      setDraftSiteTemplates(saved.templates);
-      setDraftTemplateLayouts(saved.templateLayouts);
       setDraftSiteEditor(saved.editor);
       setContentMessage(`${scopeLabel} 저장이 완료되었습니다.`);
     } catch (saveError) {
@@ -1609,424 +1313,21 @@ export function AdminPage() {
     }
   };
 
-  const handleTemplateSourceChange = async (
-    targetPath: string,
-    sourcePath: string,
-    targetLabel: string,
-    targetParentLabel = '',
-  ) => {
-    if (!adminToken) {
-      return;
-    }
-
-    const normalizedTargetPath = normalizeEditorMenuPath(targetPath);
-    const normalizedSourcePath = normalizeEditorMenuPath(sourcePath);
-    const clonedPage = buildClonedCustomPageFromSource(
-      {
-        copy: draftSiteCopy,
-        content: draftSiteContent,
-        templates: draftSiteTemplates,
-        templateLayouts: draftTemplateLayouts,
-      },
-      normalizedSourcePath,
-      normalizedTargetPath,
-      targetLabel,
-      targetParentLabel,
-    );
-
-    if (!clonedPage) {
-      return;
-    }
-
-    setIsSavingContent(true);
-    setSavingScopeKey(`template-source:${normalizedTargetPath}`);
-    setContentError('');
-    setContentMessage('');
-
-    const nextTemplates = {
-      ...draftSiteTemplates,
-      [normalizedTargetPath]: clonedPage.templateId,
-    };
-    const shouldRestoreBuiltInPage =
-      isImplementedPublicPath(normalizedTargetPath) && normalizedSourcePath === normalizedTargetPath;
-    const nextContent = {
-      ...draftSiteContent,
-      customPages: shouldRestoreBuiltInPage
-        ? removeCustomPageByPath(draftSiteContent.customPages, normalizedTargetPath)
-        : upsertCustomPage(draftSiteContent.customPages, clonedPage),
-    };
-
-    try {
-      const saved = await saveSiteData(buildNextSiteData(nextContent, nextTemplates), adminToken);
-      updateSiteData(saved);
-      setDraftSiteCopy(saved.copy);
-      setDraftSiteContent(saved.content);
-      setDraftSiteTemplates(saved.templates);
-      setDraftTemplateLayouts(saved.templateLayouts);
-      setDraftSiteEditor(saved.editor);
-      setContentMessage('원본 페이지 복제가 적용되고 저장되었습니다.');
-      setPendingTemplateSourceSelections((current) => {
-        const next = { ...current };
-        delete next[normalizedTargetPath];
-        return next;
-      });
-    } catch (saveError) {
-      const message = saveError instanceof Error ? saveError.message : '원본 페이지 복제 적용에 실패했습니다.';
-      setContentError(message);
-    } finally {
-      setIsSavingContent(false);
-      setSavingScopeKey('');
-    }
-  };
-
-  const handleTemplateSectionMove = (templateId: TemplateCatalogId, index: number, direction: 'up' | 'down') => {
-    setDraftTemplateLayouts((current) => {
-      const sections = [...getTemplateLayoutSections(templateId, current).map((section) => ({
-        id: section.id,
-        visible: section.visible,
-      }))];
-      const nextIndex = direction === 'up' ? index - 1 : index + 1;
-
-      if (nextIndex < 0 || nextIndex >= sections.length) {
-        return current;
-      }
-
-      const [moved] = sections.splice(index, 1);
-      sections.splice(nextIndex, 0, moved);
-
-      return {
+  const handleSectionLabelChange = (page: EditorPageId, sectionId: string, value: string) => {
+    setDraftSiteEditor((current) => {
+      const next = {
         ...current,
-        [templateId]: {
-          sections,
+        sectionLabels: {
+          ...current.sectionLabels,
+          [page]: {
+            ...current.sectionLabels[page],
+            [sectionId]: value,
+          },
         },
       };
+      draftSiteEditorRef.current = next;
+      return next;
     });
-  };
-
-  const handleTemplateSectionVisibilityChange = (templateId: TemplateCatalogId, sectionId: string) => {
-    setDraftTemplateLayouts((current) => ({
-      ...current,
-      [templateId]: {
-        sections: getTemplateLayoutSections(templateId, current).map((section) => ({
-          id: section.id,
-          visible: section.id === sectionId ? !section.visible : section.visible,
-        })),
-      },
-    }));
-  };
-
-  const handleCustomPageSettingChange = (pagePath: string, sectionId: string, key: string, value: string) => {
-    setDraftSiteContent((current) => ({
-      ...current,
-      customPages: updateCustomPageCollection(current.customPages, pagePath, (page) => ({
-        ...page,
-        sections: page.sections.map((section) =>
-          section.id === sectionId
-            ? {
-                ...section,
-                settings: {
-                  ...(section.settings || {}),
-                  [key]: value,
-                },
-              }
-            : section,
-        ),
-      })),
-    }));
-  };
-
-  const handleSectionLabelChange = (page: EditorPageId, sectionId: string, value: string) => {
-    setDraftSiteEditor((current) => ({
-      ...current,
-      sectionLabels: {
-        ...current.sectionLabels,
-        [page]: {
-          ...current.sectionLabels[page],
-          [sectionId]: value,
-        },
-      },
-    }));
-  };
-
-  const handleCustomPageFieldChange = (
-    pagePath: string,
-    sectionId: string,
-    field: keyof Omit<CustomPageSection, 'id' | 'items'>,
-    value: string,
-  ) => {
-    setDraftSiteContent((current) => ({
-      ...current,
-      customPages: updateCustomPageCollection(current.customPages, pagePath, (page) => ({
-        ...page,
-        sections: page.sections.map((section) =>
-          section.id === sectionId
-            ? {
-                ...section,
-                [field]: value,
-              }
-            : section,
-        ),
-      })),
-    }));
-  };
-
-  const handleCustomPageItemChange = (
-    pagePath: string,
-    sectionId: string,
-    itemIndex: number,
-    field: keyof CustomPageSection['items'][number],
-    value: string,
-  ) => {
-    setDraftSiteContent((current) => ({
-      ...current,
-      customPages: updateCustomPageCollection(current.customPages, pagePath, (page) => ({
-        ...page,
-        sections: page.sections.map((section) =>
-          section.id === sectionId
-            ? {
-                ...section,
-                items: section.items.map((item, index) =>
-                  index === itemIndex
-                    ? {
-                        ...item,
-                        [field]: value,
-                      }
-                    : item,
-                ),
-              }
-            : section,
-        ),
-      })),
-    }));
-  };
-
-  const handleAddCustomPageItem = (pagePath: string, sectionId: string) => {
-    setDraftSiteContent((current) => ({
-      ...current,
-      customPages: updateCustomPageCollection(current.customPages, pagePath, (page) => ({
-        ...page,
-        sections: page.sections.map((section) =>
-          section.id === sectionId
-            ? {
-                ...section,
-                items: [...section.items, createEmptyCustomSectionItem()],
-              }
-            : section,
-        ),
-      })),
-    }));
-  };
-
-  const handleDeleteCustomPageItem = (pagePath: string, sectionId: string, itemIndex: number) => {
-    setDraftSiteContent((current) => ({
-      ...current,
-      customPages: updateCustomPageCollection(current.customPages, pagePath, (page) => ({
-        ...page,
-        sections: page.sections.map((section) =>
-          section.id === sectionId
-            ? {
-                ...section,
-                items: section.items.filter((_, index) => index !== itemIndex),
-              }
-            : section,
-        ),
-      })),
-    }));
-  };
-
-  const handleMoveCustomPageItem = (
-    pagePath: string,
-    sectionId: string,
-    itemIndex: number,
-    direction: 'up' | 'down',
-  ) => {
-    setDraftSiteContent((current) => ({
-      ...current,
-      customPages: updateCustomPageCollection(current.customPages, pagePath, (page) => ({
-        ...page,
-        sections: page.sections.map((section) => {
-          if (section.id !== sectionId) {
-            return section;
-          }
-
-          const targetIndex = direction === 'up' ? itemIndex - 1 : itemIndex + 1;
-
-          if (targetIndex < 0 || targetIndex >= section.items.length) {
-            return section;
-          }
-
-          const nextItems = [...section.items];
-          const [movedItem] = nextItems.splice(itemIndex, 1);
-          nextItems.splice(targetIndex, 0, movedItem);
-
-          return {
-            ...section,
-            items: nextItems,
-          };
-        }),
-      })),
-    }));
-  };
-
-  const handleCustomPageImageUpload = (
-    pagePath: string,
-    sectionId: string,
-    file: File | null,
-    itemIndex?: number,
-  ) => {
-    if (!adminToken || !file) {
-      return;
-    }
-
-    const fieldKey = `custom:${pagePath}:${sectionId}:${itemIndex ?? 'section'}`;
-    setUploadingFieldKey(fieldKey);
-    setContentError('');
-    setContentMessage('');
-
-    void (async () => {
-      try {
-        const imageUrl = await uploadAdminImage(file, 'custom-pages', adminToken);
-        const nextContent = {
-          ...draftSiteContent,
-          customPages: updateCustomPageCollection(draftSiteContent.customPages, pagePath, (page) => ({
-            ...page,
-            sections: page.sections.map((section) => {
-              if (section.id !== sectionId) {
-                return section;
-              }
-
-              if (itemIndex === undefined) {
-                return {
-                  ...section,
-                  imageUrl,
-                };
-              }
-
-              return {
-                ...section,
-                items: section.items.map((item, index) =>
-                  index === itemIndex
-                    ? {
-                        ...item,
-                        imageUrl,
-                      }
-                    : item,
-                ),
-              };
-            }),
-          })),
-        };
-        const saved = await saveSiteData(buildNextSiteData(nextContent), adminToken);
-        updateSiteData(saved);
-        setDraftSiteCopy(saved.copy);
-        setDraftSiteContent(saved.content);
-        setDraftSiteTemplates(saved.templates);
-        setDraftTemplateLayouts(saved.templateLayouts);
-        setDraftSiteEditor(saved.editor);
-        setContentMessage('이미지가 업로드되고 바로 저장되었습니다.');
-      } catch (uploadError) {
-        const message = uploadError instanceof Error ? uploadError.message : '이미지 업로드에 실패했습니다.';
-        setContentError(message);
-      } finally {
-        setUploadingFieldKey('');
-      }
-    })();
-  };
-
-  const handleCustomPageImageDelete = (
-    pagePath: string,
-    sectionId: string,
-    currentValue: string,
-    itemIndex?: number,
-  ) => {
-    if (!adminToken) {
-      return;
-    }
-
-    const fieldKey = `custom:${pagePath}:${sectionId}:${itemIndex ?? 'section'}`;
-    setDeletingFieldKey(fieldKey);
-    setContentError('');
-    setContentMessage('');
-
-    void (async () => {
-      try {
-        if (currentValue) {
-          await deleteAdminImage(currentValue, adminToken);
-        }
-
-        const nextContent = {
-          ...draftSiteContent,
-          customPages: updateCustomPageCollection(draftSiteContent.customPages, pagePath, (page) => ({
-            ...page,
-            sections: page.sections.map((section) => {
-              if (section.id !== sectionId) {
-                return section;
-              }
-
-              if (itemIndex === undefined) {
-                return {
-                  ...section,
-                  imageUrl: '',
-                };
-              }
-
-              return {
-                ...section,
-                items: section.items.map((item, index) =>
-                  index === itemIndex
-                    ? {
-                        ...item,
-                        imageUrl: '',
-                      }
-                    : item,
-                ),
-              };
-            }),
-          })),
-        };
-        const saved = await saveSiteData(buildNextSiteData(nextContent), adminToken);
-        updateSiteData(saved);
-        setDraftSiteCopy(saved.copy);
-        setDraftSiteContent(saved.content);
-        setDraftSiteTemplates(saved.templates);
-        setDraftTemplateLayouts(saved.templateLayouts);
-        setDraftSiteEditor(saved.editor);
-        setContentMessage('이미지를 삭제하고 저장했습니다.');
-      } catch (deleteError) {
-        const message = deleteError instanceof Error ? deleteError.message : '이미지 삭제에 실패했습니다.';
-        setContentError(message);
-      } finally {
-        setDeletingFieldKey('');
-      }
-    })();
-  };
-
-  const handleSaveTemplateAssignments = async () => {
-    if (!adminToken) {
-      return;
-    }
-
-    setIsSavingContent(true);
-    setSavingScopeKey('templates');
-    setContentError('');
-    setContentMessage('');
-
-    try {
-      const saved = await saveSiteData(buildNextSiteData(), adminToken);
-      updateSiteData(saved);
-      setDraftSiteCopy(saved.copy);
-      setDraftSiteContent(saved.content);
-      setDraftSiteTemplates(saved.templates);
-      setDraftTemplateLayouts(saved.templateLayouts);
-      setDraftSiteEditor(saved.editor);
-      setContentMessage('템플릿 구조와 지정이 저장되었습니다.');
-    } catch (saveError) {
-      const message = saveError instanceof Error ? saveError.message : '템플릿 저장에 실패했습니다.';
-      setContentError(message);
-    } finally {
-      setIsSavingContent(false);
-      setSavingScopeKey('');
-    }
   };
 
   const handleContentTextFieldChange = (
@@ -2034,10 +1335,14 @@ export function AdminPage() {
     path: ImagePathSegment[],
     value: string,
   ) => {
-    setDraftSiteContent((current) => ({
-      ...current,
-      [page]: updateNestedValue(current[page], path, value),
-    }));
+    setDraftSiteContent((current) => {
+      const next = {
+        ...current,
+        [page]: updateNestedValue(current[page], path, value),
+      };
+      draftSiteContentRef.current = next;
+      return next;
+    });
   };
 
   const handleImageFieldChange = (
@@ -2045,10 +1350,14 @@ export function AdminPage() {
     path: ImagePathSegment[],
     value: string,
   ) => {
-    setDraftSiteContent((current) => ({
-      ...current,
-      [page]: updateNestedValue(current[page], path, value),
-    }));
+    setDraftSiteContent((current) => {
+      const next = {
+        ...current,
+        [page]: updateNestedValue(current[page], path, value),
+      };
+      draftSiteContentRef.current = next;
+      return next;
+    });
   };
 
   const handleImageUpload = (
@@ -2076,8 +1385,6 @@ export function AdminPage() {
         updateSiteData(saved);
         setDraftSiteCopy(saved.copy);
         setDraftSiteContent(saved.content);
-        setDraftSiteTemplates(saved.templates);
-        setDraftTemplateLayouts(saved.templateLayouts);
         setDraftSiteEditor(saved.editor);
         setContentMessage('이미지가 업로드되고 바로 저장되었습니다.');
       } catch (uploadError) {
@@ -2115,8 +1422,6 @@ export function AdminPage() {
         updateSiteData(saved);
         setDraftSiteCopy(saved.copy);
         setDraftSiteContent(saved.content);
-        setDraftSiteTemplates(saved.templates);
-        setDraftTemplateLayouts(saved.templateLayouts);
         setDraftSiteEditor(saved.editor);
         setContentMessage('이미지가 삭제되고 저장되었습니다.');
       } catch (deleteError) {
@@ -2331,6 +1636,65 @@ export function AdminPage() {
                     <p className="admin-helper-text">현재 구현된 페이지와 연결돼 있어 기본 경로는 고정됩니다.</p>
                   ) : null}
                 </div>
+
+                <div className="admin-field-grid--full" style={{ marginTop: '16px' }}>
+                  <div className="admin-image-card" style={{ gridTemplateColumns: '240px minmax(0, 1fr)', padding: '24px' }}>
+                    <div className="admin-image-card__preview" style={{ height: '135px' }}>
+                      {selectedHeaderMenu.imageUrl ? (
+                        <img src={selectedHeaderMenu.imageUrl} alt="메가메뉴 미리보기" />
+                      ) : (
+                        <span>이미지 없음</span>
+                      )}
+                    </div>
+                    <div className="admin-image-card__body">
+                      <strong>메가메뉴 우측 이미지</strong>
+                      <div className="admin-editor-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                        <label className="form-field">
+                          <span>이미지 URL</span>
+                          <input
+                            type="text"
+                            placeholder="https://..."
+                            value={selectedHeaderMenu.imageUrl || ''}
+                            onChange={(event) =>
+                              handleContentTextFieldChange('menus', ['headerItems', selectedHeaderMenuIndex, 'imageUrl'], event.target.value)
+                            }
+                          />
+                        </label>
+                        <label className="form-field">
+                          <span>직접 업로드</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(event) => {
+                              handleImageUpload('menus', ['headerItems', selectedHeaderMenuIndex, 'imageUrl'], event.target.files?.[0] || null);
+                              event.currentTarget.value = '';
+                            }}
+                          />
+                        </label>
+                      </div>
+                      <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
+                        <button
+                          type="button"
+                          className="button admin-image-card__delete"
+                          style={{ minHeight: '40px', padding: '0 16px' }}
+                          onClick={() => {
+                            if (selectedHeaderMenu.imageUrl) {
+                              void handleImageDelete('menus', ['headerItems', selectedHeaderMenuIndex, 'imageUrl'], selectedHeaderMenu.imageUrl);
+                            }
+                          }}
+                          disabled={!selectedHeaderMenu.imageUrl}
+                        >
+                          이미지 삭제
+                        </button>
+                        <p className="admin-helper-text" style={{ marginTop: 0, alignSelf: 'center' }}>
+                          {uploadingFieldKey === `menus:headerItems.${selectedHeaderMenuIndex}.imageUrl`
+                            ? '업로드 중...'
+                            : '권장 비율 16:9 (최소 800x450px)'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             ) : null}
             <div className="admin-menu-table-wrap">
@@ -2504,282 +1868,6 @@ export function AdminPage() {
     );
   };
 
-  const renderTemplateManager = () => {
-    return (
-      <div className="admin-template-manager">
-        <div className="admin-panel__header admin-panel__header--stack">
-          <div>
-            <p className="admin-panel__eyebrow">템플릿 라이브러리</p>
-            <h2>템플릿 관리</h2>
-            <p className="admin-panel__description">템플릿은 구조를 관리하고, 페이지 편집은 문구와 이미지를 관리합니다. 여기서 구조를 바꾸면 같은 템플릿을 쓰는 페이지에 같이 반영됩니다.</p>
-          </div>
-        </div>
-
-        {contentMessage ? <p className="form-feedback form-feedback--success">{contentMessage}</p> : null}
-        {contentError ? <p className="form-feedback form-feedback--error">{contentError}</p> : null}
-
-        <section className="admin-panel">
-          <div className="admin-guide-list">
-            <div>
-              <strong>현재 페이지 원본 템플릿</strong>
-              <p>운영 중인 페이지도 다른 페이지를 원본으로 복제해서 구조와 내용을 함께 가져올 수 있습니다.</p>
-            </div>
-            <div>
-              <strong>미구현 메뉴 템플릿 지정</strong>
-              <p>메뉴는 만들었지만 아직 페이지가 없는 경우에도, 기존 페이지를 원본으로 복제해 바로 편집 가능한 페이지로 확장할 수 있습니다.</p>
-            </div>
-            <div>
-              <strong>실제 화면 수정 위치</strong>
-              <p>원본 페이지는 여기서 바꾸고, 복제된 뒤의 문구와 이미지는 홈페이지 관리에서 섹션별로 수정합니다.</p>
-            </div>
-          </div>
-        </section>
-
-        <section className="admin-panel">
-          <div className="admin-panel__header admin-panel__header--stack">
-            <div>
-              <p className="admin-panel__eyebrow">페이지별 현황</p>
-              <h2>현재 페이지에 적용된 원본 페이지</h2>
-              <p className="admin-panel__description">운영 중인 페이지가 어느 페이지를 원본으로 복제했는지 확인하고, 다른 페이지 원본으로 바꿀 수 있습니다.</p>
-            </div>
-          </div>
-
-          <div className="admin-template-assignment-list">
-            {templateOverviewItems.map((item) => {
-              const currentSourcePath = findCustomPageByPath(draftSiteContent.customPages, item.path)?.sourcePath || item.path;
-              const selectedSourcePath = pendingTemplateSourceSelections[item.path] || currentSourcePath;
-              const hasPendingSourceChange =
-                normalizeEditorMenuPath(selectedSourcePath) !== normalizeEditorMenuPath(currentSourcePath);
-              const isApplyingSource =
-                isSavingContent && savingScopeKey === `template-source:${normalizeEditorMenuPath(item.path)}`;
-              const sourceMap = new Map<string, TemplateOverviewItem>(
-                templateOverviewItems.filter((option) => !option.path.includes(':')).map((option) => [option.path, option]),
-              );
-              const sourceOptions: TemplateOverviewItem[] = [...sourceMap.values()];
-
-              if (!sourceMap.has(currentSourcePath)) {
-                sourceOptions.push({
-                  path: currentSourcePath,
-                  label: item.label,
-                  templateId: item.templateId,
-                  pageKey: item.pageKey,
-                  editorPage: item.editorPage,
-                });
-              }
-
-              return (
-                <motion.article key={item.path} {...fadeUp} className="admin-template-assignment-card">
-                  <div className="admin-template-assignment-card__copy">
-                    <strong>{item.label}</strong>
-                    <p>{item.path}</p>
-                    <span>구조 템플릿: {(draftSiteTemplates[item.path] || item.templateId) && templateCatalogMap[(draftSiteTemplates[item.path] || item.templateId) as TemplateCatalogId]?.title}</span>
-                  </div>
-                  <div className="admin-template-assignment-card__controls admin-template-assignment-card__controls--select">
-                    <label className="form-field">
-                      <span>복사할 페이지 선택</span>
-                      <select
-                        value={selectedSourcePath}
-                        onChange={(event) =>
-                          setPendingTemplateSourceSelections((current) => ({
-                            ...current,
-                            [item.path]: event.target.value,
-                          }))
-                        }
-                      >
-                        {sourceOptions.map((option) => (
-                          <option key={option.path} value={option.path}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <button
-                      type="button"
-                      className="button button--primary"
-                      onClick={() => void handleTemplateSourceChange(item.path, selectedSourcePath, item.label)}
-                      disabled={!hasPendingSourceChange || isApplyingSource}
-                    >
-                      {isApplyingSource ? '적용 중...' : '이 템플릿 적용'}
-                    </button>
-                    {item.editorPage ? (
-                      <button
-                        type="button"
-                        className="button button--light"
-                        onClick={() => {
-                          setActiveNavKey('content');
-                          setSelectedEditorPage(item.editorPage);
-                          setActiveView('content');
-                        }}
-                      >
-                        페이지 관리 열기
-                      </button>
-                    ) : null}
-                  </div>
-                </motion.article>
-              );
-            })}
-          </div>
-        </section>
-
-        <section className="admin-panel">
-          <div className="admin-panel__header admin-panel__header--stack">
-            <div>
-              <p className="admin-panel__eyebrow">공용 구조</p>
-              <h2>템플릿 구조 편집</h2>
-              <p className="admin-panel__description">섹션 순서와 노출만 관리합니다. 원본 페이지 복제는 위 카드의 적용 버튼을 누르면 즉시 저장됩니다.</p>
-            </div>
-            <button
-              type="button"
-              className="button button--light"
-              onClick={() => void handleSaveTemplateAssignments()}
-              disabled={isSavingContent && savingScopeKey === 'templates'}
-            >
-              {isSavingContent && savingScopeKey === 'templates' ? '구조 저장 중...' : '템플릿 구조 저장'}
-            </button>
-          </div>
-
-          <div style={{ display: 'grid', gap: '16px' }}>
-            {templateCatalog.map((template) => {
-              const sections = getTemplateLayoutSections(template.id, draftTemplateLayouts);
-              const affectedPages = templateOverviewItems.filter(
-                (item) => (draftSiteTemplates[item.path] || item.templateId) === template.id,
-              );
-
-              return (
-                <motion.article key={template.id} {...fadeUp} className="admin-template-assignment-card">
-                  <div className="admin-template-assignment-card__copy">
-                    <strong>{template.title}</strong>
-                    <p>{template.description}</p>
-                    <span>
-                      적용 페이지: {affectedPages.length > 0 ? affectedPages.map((item) => item.label).join(' / ') : '현재 연결된 페이지 없음'}
-                    </span>
-                  </div>
-                  <div style={{ display: 'grid', gap: '10px' }}>
-                    {sections.map((section, index) => (
-                      <div
-                        key={`${template.id}:${section.id}`}
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'minmax(0, 1fr) auto',
-                          gap: '12px',
-                          alignItems: 'center',
-                          padding: '14px 16px',
-                          border: '1px solid rgba(148, 163, 184, 0.22)',
-                          borderRadius: '18px',
-                          background: '#fff',
-                        }}
-                      >
-                        <div>
-                          <strong style={{ display: 'block', color: 'var(--text-strong)' }}>
-                            Section {index + 1}
-                          </strong>
-                          <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: '14px' }}>
-                            {section.label}
-                          </p>
-                        </div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'flex-end' }}>
-                          <button
-                            type="button"
-                            className="button button--light admin-array-action-button"
-                            onClick={() => handleTemplateSectionMove(template.id, index, 'up')}
-                            disabled={index === 0}
-                          >
-                            <ChevronUp size={16} />
-                            위로
-                          </button>
-                          <button
-                            type="button"
-                            className="button button--light admin-array-action-button"
-                            onClick={() => handleTemplateSectionMove(template.id, index, 'down')}
-                            disabled={index === sections.length - 1}
-                          >
-                            <ChevronDown size={16} />
-                            아래로
-                          </button>
-                          <button
-                            type="button"
-                            className="button button--light admin-array-action-button"
-                            onClick={() => handleTemplateSectionVisibilityChange(template.id, section.id)}
-                          >
-                            {section.visible ? '노출 중' : '숨김'}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </motion.article>
-              );
-            })}
-          </div>
-        </section>
-
-        <section className="admin-panel">
-          <div className="admin-panel__header admin-panel__header--stack">
-            <div>
-              <p className="admin-panel__eyebrow">미구현 메뉴</p>
-              <h2>페이지가 없는 메뉴 원본 페이지 지정</h2>
-              <p className="admin-panel__description">아직 화면이 없는 메뉴도 기존 페이지를 원본으로 복제해 바로 편집 가능한 페이지로 만들 수 있습니다.</p>
-            </div>
-          </div>
-
-          {assignableTemplateTargets.length === 0 ? (
-            <p className="admin-empty">현재 메뉴 중 별도 템플릿 지정이 필요한 미구현 페이지는 없습니다.</p>
-          ) : (
-            <div className="admin-template-assignment-list">
-              {assignableTemplateTargets.map((item) => {
-                const sourceOptions = templateOverviewItems.filter((option) => !option.path.includes(':'));
-                const currentSourcePath = findCustomPageByPath(draftSiteContent.customPages, item.path)?.sourcePath || sourceOptions[0]?.path || '/';
-                const selectedSourcePath = pendingTemplateSourceSelections[item.path] || currentSourcePath;
-                const hasPendingSourceChange =
-                  normalizeEditorMenuPath(selectedSourcePath) !== normalizeEditorMenuPath(currentSourcePath);
-                const isApplyingSource =
-                  isSavingContent && savingScopeKey === `template-source:${normalizeEditorMenuPath(item.path)}`;
-
-                return (
-                  <motion.article key={item.path} {...fadeUp} className="admin-template-assignment-card">
-                    <div className="admin-template-assignment-card__copy">
-                      <strong>{item.label}</strong>
-                      <p>{item.path}</p>
-                      <span>{item.source}</span>
-                    </div>
-                    <div className="admin-template-assignment-card__controls admin-template-assignment-card__controls--select">
-                      <label className="form-field">
-                        <span>복사할 페이지 선택</span>
-                        <select
-                          value={selectedSourcePath}
-                          onChange={(event) =>
-                            setPendingTemplateSourceSelections((current) => ({
-                              ...current,
-                              [item.path]: event.target.value,
-                            }))
-                          }
-                        >
-                          {sourceOptions.map((option) => (
-                            <option key={option.path} value={option.path}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <button
-                        type="button"
-                        className="button button--primary"
-                        onClick={() => void handleTemplateSourceChange(item.path, selectedSourcePath, item.label, item.parentLabel)}
-                        disabled={!hasPendingSourceChange || isApplyingSource}
-                      >
-                        {isApplyingSource ? '적용 중...' : '이 템플릿 적용'}
-                      </button>
-                    </div>
-                  </motion.article>
-                );
-              })}
-            </div>
-          )}
-        </section>
-      </div>
-    );
-  };
-
   const filteredItems = useMemo(
     () =>
       items.filter((item) => {
@@ -2811,34 +1899,13 @@ export function AdminPage() {
   const selectedContentKey = selectedEditorPageMeta.contentKey;
   const selectedCopyDefinition =
     resolvedEditableSections.find((section) => section.key === selectedContentKey) || resolvedEditableSections[0];
-  const selectedCustomPage = selectedEditorPageMeta.templatePath
-    ? findCustomPageByPath(draftSiteContent.customPages, selectedEditorPageMeta.templatePath) || null
-    : null;
-  const selectedTemplateId =
-    selectedEditorPageMeta.templatePath
-      ? draftSiteTemplates[selectedEditorPageMeta.templatePath] ||
-        defaultSitePageTemplates[selectedEditorPageMeta.templatePath] ||
-        (selectedCustomPage ? selectedCustomPage.templateId : undefined)
-      : undefined;
-  const selectedTemplate = selectedTemplateId ? templateCatalogMap[selectedTemplateId] : null;
   const selectedSectionLabels = draftSiteEditor.sectionLabels[selectedEditorPage] || {};
   const selectedContentGroupIds = useMemo(
-    () =>
-      selectedCustomPage
-        ? resolveTemplateLayout(selectedCustomPage.templateId, draftTemplateLayouts).sections
-            .filter(
-              (section) => section.visible && selectedCustomPage.sections.some((customSection) => customSection.id === section.id),
-            )
-            .map((section) => section.id)
-        : resolveEditorPageGroupOrder(selectedEditorPageMeta, draftSiteTemplates, draftTemplateLayouts),
-    [draftSiteTemplates, draftTemplateLayouts, selectedCustomPage, selectedEditorPageMeta],
+    () => resolveEditorPageGroupOrder(selectedEditorPageMeta),
+    [selectedEditorPageMeta],
   );
   const selectedImageFields = useMemo(
     () => {
-      if (selectedEditorPageMeta.isCustom) {
-        return [];
-      }
-
       const currentPageFields = collectImageFields(selectedContentKey, draftSiteContent[selectedContentKey]);
 
       if (selectedContentKey !== 'home') {
@@ -2877,10 +1944,6 @@ export function AdminPage() {
     [draftSiteContent, selectedContentKey],
   );
   const selectedTextFields = useMemo(() => {
-    if (selectedEditorPageMeta.isCustom) {
-      return [];
-    }
-
     const currentPageFields = collectTextFields(selectedContentKey, draftSiteContent[selectedContentKey]);
 
     if (selectedContentKey !== 'home') {
@@ -2907,32 +1970,16 @@ export function AdminPage() {
     return [...currentPageFields, ...resourcePreviewTextFields];
   }, [draftSiteContent, selectedContentKey]);
   const selectedContentGroups = useMemo(() => {
-    if (selectedEditorPageMeta.isCustom || selectedCustomPage) {
-      return [];
-    }
-
     const groupMap = new Map(contentSectionGroups[selectedContentKey].map((group) => [group.id, group]));
     return selectedContentGroupIds
       .map((groupId) => groupMap.get(groupId))
       .filter(Boolean) as ContentSectionGroup[];
-  }, [selectedContentGroupIds, selectedContentKey, selectedCustomPage, selectedEditorPageMeta.isCustom]);
+  }, [selectedContentGroupIds, selectedContentKey]);
   const pendingCount = countByStatus('new') + countByStatus('in_progress');
   const recentItems = items.slice(0, 3);
   const adminInitial = adminUser?.name.trim().charAt(0) || 'M';
 
   useEffect(() => {
-    if (selectedCustomPage) {
-      if (selectedContentGroupIds.length === 0) {
-        setSelectedCmsSectionId('');
-        return;
-      }
-
-      if (!selectedContentGroupIds.includes(selectedCmsSectionId)) {
-        setSelectedCmsSectionId(selectedContentGroupIds[0]);
-      }
-      return;
-    }
-
     if (selectedContentGroups.length === 0) {
       setSelectedCmsSectionId('');
       return;
@@ -2941,417 +1988,7 @@ export function AdminPage() {
     if (!selectedContentGroups.some((group) => group.id === selectedCmsSectionId)) {
       setSelectedCmsSectionId(selectedContentGroups[0].id);
     }
-  }, [selectedCmsSectionId, selectedContentGroupIds, selectedContentGroups, selectedCustomPage]);
-
-  const renderCustomPageEditor = () => {
-    if (!selectedCustomPage || !selectedTemplate) {
-      return null;
-    }
-
-    const visibleSections = resolveTemplateLayout(selectedCustomPage.templateId, draftTemplateLayouts).sections.filter(
-      (section) => section.visible && selectedCustomPage.sections.some((customSection) => customSection.id === section.id),
-    );
-    const currentSection =
-      selectedCustomPage.sections.find((section) => section.id === selectedCmsSectionId) ||
-      selectedCustomPage.sections.find((section) => section.id === visibleSections[0]?.id) ||
-      null;
-
-    if (!currentSection) {
-      return null;
-    }
-
-    const visibleSectionIndex = visibleSections.findIndex((section) => section.id === currentSection.id);
-    const currentSectionLabel =
-      selectedSectionLabels[currentSection.id]?.trim() || `Section ${Math.max(visibleSectionIndex, 0) + 1}`;
-    const customSaveKey = `custom:${selectedCustomPage.path}:${currentSection.id}`;
-    const isSavingCustomPage = isSavingContent && savingScopeKey === customSaveKey;
-
-    return (
-      <>
-        <motion.article {...fadeUp} className="admin-cms-section-card" style={{ marginBottom: '24px' }}>
-          <div className="admin-cms-section-card__header">
-            <div>
-              <h3>{selectedEditorPageMeta.title}</h3>
-              <p>{selectedEditorPageMeta.helperText || '선택한 페이지를 섹션별 탭으로 수정합니다.'}</p>
-            </div>
-          </div>
-          <div className="admin-guide-list" style={{ marginTop: '16px' }}>
-            <div>
-              <strong>적용 구조 템플릿</strong>
-              <p>{selectedTemplate?.title || '직접 관리 페이지'}</p>
-              <p className="admin-helper-text" style={{ marginTop: '8px' }}>
-                원본 페이지 변경은 템플릿 관리에서 합니다. 현재 화면에서는 복제된 뒤의 문구와 이미지만 수정합니다.
-              </p>
-            </div>
-            <div>
-              <strong>페이지 경로</strong>
-              <p>{selectedCustomPage.path}</p>
-            </div>
-          </div>
-        </motion.article>
-
-        <div className="admin-cms-tabs">
-          {visibleSections.map((section, index) => (
-            <button
-              key={section.id}
-              type="button"
-              className={selectedCmsSectionId === section.id ? 'admin-cms-tab is-active' : 'admin-cms-tab'}
-              onClick={() => setSelectedCmsSectionId(section.id)}
-            >
-              {selectedSectionLabels[section.id]?.trim() || `Section ${index + 1}`}
-            </button>
-          ))}
-        </div>
-
-        {contentMessage ? <p className="form-feedback form-feedback--success">{contentMessage}</p> : null}
-        {contentError ? <p className="form-feedback form-feedback--error">{contentError}</p> : null}
-
-        <motion.article {...fadeUp} className="admin-cms-section-card">
-          <div className="admin-cms-section-card__header">
-            <div>
-              <h3>{currentSectionLabel}</h3>
-              <p>선택한 템플릿 섹션의 문구, 버튼, 이미지, 반복 항목을 수정합니다.</p>
-            </div>
-          </div>
-
-          <div className="admin-field-grid" style={{ marginBottom: '24px' }}>
-            <div className="admin-field-grid--full">
-              <label className="form-field admin-section-name-field">
-                <span>섹션명</span>
-                <input
-                  type="text"
-                  value={selectedSectionLabels[currentSection.id] || ''}
-                  placeholder={`Section ${Math.max(visibleSectionIndex, 0) + 1}`}
-                  onChange={(event) => handleSectionLabelChange(selectedEditorPage, currentSection.id, event.target.value)}
-                />
-              </label>
-              <p className="admin-helper-text">
-                비워두면 기본값으로 Section {Math.max(visibleSectionIndex, 0) + 1} 이 표시됩니다.
-              </p>
-            </div>
-          </div>
-
-          <div className="admin-field-grid">
-            <div className="admin-field-grid--full" style={{ marginBottom: '24px' }}>
-              <strong className="admin-section-group-card__label">기본 텍스트(카피) 편집</strong>
-              <div className="admin-field-grid" style={{ marginTop: '12px' }}>
-                {[
-                  ['eyebrow', '상단 라벨'],
-                  ['title', '제목'],
-                  ['description', '설명'],
-                  ['primaryButtonLabel', '기본 버튼 문구'],
-                  ['primaryButtonHref', '기본 버튼 링크'],
-                  ['secondaryButtonLabel', '보조 버튼 문구'],
-                  ['secondaryButtonHref', '보조 버튼 링크'],
-                ].map(([field, label]) => (
-                  <label key={field} className="form-field">
-                    <span>{label}</span>
-                    {field === 'description' ? (
-                      <textarea
-                        rows={4}
-                        value={currentSection[field as keyof CustomPageSection] as string}
-                        onChange={(event) =>
-                          handleCustomPageFieldChange(
-                            selectedCustomPage.path,
-                            currentSection.id,
-                            field as keyof Omit<CustomPageSection, 'id' | 'items'>,
-                            event.target.value,
-                          )
-                        }
-                      />
-                    ) : (
-                      <input
-                        type={field.toLowerCase().includes('href') ? 'text' : 'text'}
-                        value={currentSection[field as keyof CustomPageSection] as string}
-                        onChange={(event) =>
-                          handleCustomPageFieldChange(
-                            selectedCustomPage.path,
-                            currentSection.id,
-                            field as keyof Omit<CustomPageSection, 'id' | 'items'>,
-                            event.target.value,
-                          )
-                        }
-                      />
-                    )}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {Object.keys(currentSection.settings || {}).length > 0 ? (
-              <div className="admin-field-grid--full" style={{ marginBottom: '24px' }}>
-                <strong className="admin-section-group-card__label">세부 UI 텍스트 편집</strong>
-                <div className="admin-field-grid" style={{ marginTop: '12px' }}>
-                  {Object.entries(currentSection.settings)
-                    .filter(([key]) => key !== 'variant')
-                    .map(([key, value]) => (
-                      <label key={key} className="form-field">
-                        <span>{formatCustomSettingLabel(key)}</span>
-                        {key.toLowerCase().includes('messagebody') || key.toLowerCase().includes('description') ? (
-                          <textarea
-                            rows={4}
-                            value={value}
-                            onChange={(event) =>
-                              handleCustomPageSettingChange(selectedCustomPage.path, currentSection.id, key, event.target.value)
-                            }
-                          />
-                        ) : (
-                          <input
-                            type="text"
-                            value={value}
-                            onChange={(event) =>
-                              handleCustomPageSettingChange(selectedCustomPage.path, currentSection.id, key, event.target.value)
-                            }
-                          />
-                        )}
-                      </label>
-                    ))}
-                </div>
-              </div>
-            ) : null}
-
-            <div className="admin-field-grid--full" style={{ marginBottom: '24px' }}>
-              <strong className="admin-section-group-card__label">대표 이미지 관리</strong>
-              <div className="admin-image-grid" style={{ marginTop: '16px' }}>
-                <article className="admin-image-card">
-                  <div className="admin-image-card__preview">
-                    {currentSection.imageUrl ? <img src={currentSection.imageUrl} alt={currentSection.title} /> : <span>이미지 없음</span>}
-                  </div>
-                  <div className="admin-image-card__body">
-                    <strong>{currentSectionLabel} 이미지</strong>
-                    <label className="form-field">
-                      <span>이미지 URL</span>
-                      <input
-                        type="url"
-                        value={currentSection.imageUrl}
-                        onChange={(event) =>
-                          handleCustomPageFieldChange(selectedCustomPage.path, currentSection.id, 'imageUrl', event.target.value)
-                        }
-                        placeholder="https://..."
-                      />
-                    </label>
-                    <label className="form-field">
-                      <span>새 이미지 업로드</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(event) => {
-                          handleCustomPageImageUpload(
-                            selectedCustomPage.path,
-                            currentSection.id,
-                            event.target.files?.[0] || null,
-                          );
-                          event.currentTarget.value = '';
-                        }}
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      className="button admin-image-card__delete"
-                      onClick={() =>
-                        handleCustomPageImageDelete(selectedCustomPage.path, currentSection.id, currentSection.imageUrl)
-                      }
-                      disabled={!currentSection.imageUrl}
-                    >
-                      이미지 삭제
-                    </button>
-                    <p className="admin-helper-text">권장 형식: JPG, PNG, WEBP / 권장 비율 16:9</p>
-                  </div>
-                </article>
-              </div>
-            </div>
-
-            <div className="admin-section-group-card__block" style={{ borderTop: '1px solid #f1f5f9', paddingTop: '24px' }}>
-              <div className="admin-section-group-card__block-header">
-                <strong className="admin-section-group-card__label">반복 항목 편집</strong>
-                <button
-                  type="button"
-                  className="button button--light admin-array-action-button"
-                  onClick={() => handleAddCustomPageItem(selectedCustomPage.path, currentSection.id)}
-                >
-                  <Plus size={16} />
-                  항목 추가
-                </button>
-              </div>
-              <div className="admin-nested-group-list">
-                {currentSection.items.map((item, itemIndex) => {
-                  const fieldKey = `custom:${selectedCustomPage.path}:${currentSection.id}:${itemIndex}`;
-                  const isUploading = uploadingFieldKey === fieldKey;
-                  const isDeleting = deletingFieldKey === fieldKey;
-
-                  return (
-                    <details key={`${currentSection.id}:${itemIndex}`} className="admin-nested-group" open>
-                      <summary className="admin-nested-group__summary">{item.title || `항목 ${itemIndex + 1}`}</summary>
-                      <div className="admin-nested-group__body">
-                        <div className="admin-array-item-actions">
-                          <div className="admin-array-item-actions__primary">
-                            <button
-                              type="button"
-                              className="button button--light admin-array-action-button"
-                              onClick={() => handleMoveCustomPageItem(selectedCustomPage.path, currentSection.id, itemIndex, 'up')}
-                              disabled={itemIndex === 0}
-                            >
-                              <ChevronUp size={16} />
-                              위로
-                            </button>
-                            <button
-                              type="button"
-                              className="button button--light admin-array-action-button"
-                              onClick={() => handleMoveCustomPageItem(selectedCustomPage.path, currentSection.id, itemIndex, 'down')}
-                              disabled={itemIndex >= currentSection.items.length - 1}
-                            >
-                              <ChevronDown size={16} />
-                              아래로
-                            </button>
-                          </div>
-                          <button
-                            type="button"
-                            className="button admin-array-delete-button"
-                            onClick={() => handleDeleteCustomPageItem(selectedCustomPage.path, currentSection.id, itemIndex)}
-                          >
-                            <Trash2 size={16} />
-                            삭제
-                          </button>
-                        </div>
-
-                        <div className="admin-field-grid">
-                          {([
-                            ['title', '제목'],
-                            ['description', '설명'],
-                            ['details', '추가 텍스트'],
-                            ['meta', '보조 정보'],
-                            ['badge', '배지'],
-                            ['href', '링크'],
-                          ] as Array<[keyof CustomPageSection['items'][number], string]>).map(([field, label]) => (
-                            <label key={field} className="form-field">
-                              <span>{label}</span>
-                              {field === 'description' || field === 'details' ? (
-                                <textarea
-                                  rows={4}
-                                  value={item[field] as string}
-                                  onChange={(event) =>
-                                    handleCustomPageItemChange(
-                                      selectedCustomPage.path,
-                                      currentSection.id,
-                                      itemIndex,
-                                      field,
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              ) : (
-                                <input
-                                  type="text"
-                                  value={item[field] as string}
-                                  onChange={(event) =>
-                                    handleCustomPageItemChange(
-                                      selectedCustomPage.path,
-                                      currentSection.id,
-                                      itemIndex,
-                                      field,
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              )}
-                            </label>
-                          ))}
-                        </div>
-
-                        <div className="admin-image-grid" style={{ marginTop: '16px', gridTemplateColumns: '1fr' }}>
-                          <article className="admin-image-card">
-                            <div className="admin-image-card__preview">
-                              {item.imageUrl ? <img src={item.imageUrl} alt={item.title} /> : <span>이미지 없음</span>}
-                            </div>
-                            <div className="admin-image-card__body">
-                              <strong>{item.title || `항목 ${itemIndex + 1}`} 이미지</strong>
-                              <label className="form-field">
-                                <span>이미지 URL</span>
-                                <input
-                                  type="url"
-                                  value={item.imageUrl}
-                                  onChange={(event) =>
-                                    handleCustomPageItemChange(
-                                      selectedCustomPage.path,
-                                      currentSection.id,
-                                      itemIndex,
-                                      'imageUrl',
-                                      event.target.value,
-                                    )
-                                  }
-                                  placeholder="https://..."
-                                  disabled={isUploading || isDeleting}
-                                />
-                              </label>
-                              <label className="form-field">
-                                <span>새 이미지 업로드</span>
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  onChange={(event) => {
-                                    handleCustomPageImageUpload(
-                                      selectedCustomPage.path,
-                                      currentSection.id,
-                                      event.target.files?.[0] || null,
-                                      itemIndex,
-                                    );
-                                    event.currentTarget.value = '';
-                                  }}
-                                  disabled={isUploading || isDeleting}
-                                />
-                              </label>
-                              <button
-                                type="button"
-                                className="button admin-image-card__delete"
-                                onClick={() =>
-                                  handleCustomPageImageDelete(
-                                    selectedCustomPage.path,
-                                    currentSection.id,
-                                    item.imageUrl,
-                                    itemIndex,
-                                  )
-                                }
-                                disabled={isUploading || isDeleting || !item.imageUrl}
-                              >
-                                {isDeleting ? '삭제 중...' : '이미지 삭제'}
-                              </button>
-                              <p className="admin-helper-text">
-                                {isUploading
-                                  ? '업로드 중입니다...'
-                                  : isDeleting
-                                    ? '이미지를 삭제하는 중입니다...'
-                                    : '권장 형식: JPG, PNG, WEBP / 권장 비율 4:3'}
-                              </p>
-                            </div>
-                          </article>
-                        </div>
-                      </div>
-                    </details>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          <div className="admin-section-group-card__footer" style={{ marginTop: '40px', paddingTop: '32px', borderTop: '2px solid #f1f5f9' }}>
-            <button
-              type="button"
-              className="button button--primary"
-              style={{ width: '100%', minHeight: '60px', fontSize: '16px' }}
-              onClick={() => void handleSaveContent(`${selectedEditorPageMeta.title} > ${currentSectionLabel}`, customSaveKey)}
-              disabled={isSavingContent}
-            >
-              <Save size={20} />
-              {isSavingCustomPage ? `${currentSectionLabel} 저장 중...` : `${currentSectionLabel} 데이터만 저장하기`}
-            </button>
-            <p style={{ textAlign: 'center', marginTop: '12px', color: '#94a3b8', fontSize: '13px' }}>
-              상기 버튼을 누르면 이 섹션의 변경사항이 즉시 서버에 저장됩니다.
-            </p>
-          </div>
-        </motion.article>
-      </>
-    );
-  };
+  }, [selectedCmsSectionId, selectedContentGroupIds, selectedContentGroups]);
 
   const renderNavItem = (item: {
     key: string;
@@ -3406,7 +2043,7 @@ export function AdminPage() {
       icon: Layers3,
       action: () => {
         setActiveNavKey('content');
-        setSelectedEditorPage('services');
+        setSelectedEditorPage('cases');
         setActiveView('content');
       },
     },
@@ -3419,16 +2056,6 @@ export function AdminPage() {
         setActiveNavKey('menus');
         setSelectedEditorPage('menus');
         setActiveView('content');
-      },
-    },
-    {
-      title: '템플릿 관리',
-      description: '페이지별 템플릿 현황을 보고, 아직 없는 메뉴에 어떤 템플릿을 쓸지 지정합니다.',
-      metric: `${templateCatalog.length}개 템플릿`,
-      icon: Blocks,
-      action: () => {
-        setActiveNavKey('templates');
-        setActiveView('templates');
       },
     },
     {
@@ -3478,16 +2105,16 @@ export function AdminPage() {
                   page: 'menus',
                 })}
                 {renderNavItem({
-                  key: 'templates',
-                  label: '템플릿 관리',
-                  icon: Blocks,
-                  view: 'templates',
-                })}
-                {renderNavItem({
                   key: 'requests',
                   label: '문의 관리',
                   icon: ClipboardList,
                   view: 'inquiries',
+                })}
+                {renderNavItem({
+                  key: 'faq',
+                  label: 'FAQ 관리',
+                  icon: CircleHelp,
+                  view: 'faq',
                 })}
               </div>
             </nav>
@@ -3515,11 +2142,11 @@ export function AdminPage() {
                   <span>
                     {activeView === 'overview'
                       ? '운영 현황'
-                      : activeView === 'templates'
-                        ? '템플릿 관리'
                       : activeView === 'content'
                         ? `${selectedEditorPageMeta.title} 편집`
-                        : '문의 관리'}
+                        : activeView === 'faq'
+                          ? '고객센터 FAQ 관리'
+                          : '문의 관리'}
                   </span>
                 </div>
               </div>
@@ -3723,8 +2350,6 @@ export function AdminPage() {
                   <div className="admin-cms-editor">
                     {selectedEditorPage === 'menus' ? (
                       renderMenuManager()
-                    ) : selectedCustomPage ? (
-                      renderCustomPageEditor()
                     ) : (
                       <>
                         <motion.article {...fadeUp} className="admin-cms-section-card" style={{ marginBottom: '24px' }}>
@@ -3736,15 +2361,8 @@ export function AdminPage() {
                           </div>
                           <div className="admin-guide-list" style={{ marginTop: '16px' }}>
                             <div>
-                              <strong>적용 구조 템플릿</strong>
-                              <p>{selectedTemplate ? selectedTemplate.title : '직접 관리 페이지'}</p>
-                              <p className="admin-helper-text" style={{ marginTop: '8px' }}>
-                                원본 페이지 변경은 템플릿 관리에서 합니다. 현재 화면에서는 이 페이지 전용 문구와 이미지 편집만 다룹니다.
-                              </p>
-                            </div>
-                            <div>
                               <strong>페이지 경로</strong>
-                              <p>{selectedEditorPageMeta.templatePath || '공통 운영 영역'}</p>
+                              <p>{selectedEditorPageMeta.path || '공통 운영 영역'}</p>
                             </div>
                           </div>
                         </motion.article>
@@ -3882,7 +2500,14 @@ export function AdminPage() {
                                   const currentItemCount = Array.isArray(currentItems) ? currentItems.length : 0;
                                   const canManageArrayItem =
                                     nestedGroupMeta &&
-                                    selectedEditorPage === 'members';
+                                    groupArrayAction &&
+                                    nestedGroupMeta.page === groupArrayAction.page &&
+                                    pathsEqual(nestedGroupMeta.arrayPath, groupArrayAction.arrayPath);
+                                  const preventDeleteLastItem =
+                                    Boolean(nestedGroupMeta) &&
+                                    nestedGroupMeta.page === 'home' &&
+                                    pathsEqual(nestedGroupMeta.arrayPath, ['heroSlides']) &&
+                                    currentItemCount <= 1;
 
                                   return (
                                   <details key={nestedGroup.key} className="admin-nested-group" open>
@@ -3934,6 +2559,7 @@ export function AdminPage() {
                                                 nestedGroupMeta.index,
                                               )
                                             }
+                                            disabled={preventDeleteLastItem}
                                           >
                                             <Trash2 size={16} />
                                             삭제
@@ -4124,8 +2750,6 @@ export function AdminPage() {
                 </div>
               ) : null}
 
-              {activeView === 'templates' ? renderTemplateManager() : null}
-
               {activeView === 'inquiries' ? (
                 <>
                   <section className="admin-overview-stats admin-overview-stats--inquiries">
@@ -4253,6 +2877,218 @@ export function AdminPage() {
                     </div>
                   </section>
                 </>
+              ) : null}
+
+              {activeView === 'faq' ? (
+                <div className="admin-faq-container">
+                  <div className="admin-faq-header">
+                    <div className="admin-faq-title">
+                      <h2>
+                        <CircleHelp size={24} style={{ color: 'var(--brand)' }} />
+                        고객센터 FAQ 관리
+                      </h2>
+                      <p>고객센터 페이지에 표시될 자주 묻는 질문을 관리합니다.</p>
+                    </div>
+                    <div className="admin-faq-actions">
+                      <button
+                        type="button"
+                        className="button button--light"
+                        onClick={() => setIsCategoryModalOpen(true)}
+                        style={{ borderRadius: '14px', height: '48px' }}
+                      >
+                        <Plus size={18} />
+                        카테고리 관리
+                      </button>
+                      <button
+                        type="button"
+                        className="button button--primary"
+                        onClick={() => setIsFaqModalOpen(true)}
+                        style={{ background: 'var(--brand)', border: 'none', borderRadius: '14px', height: '48px' }}
+                      >
+                        <Plus size={18} />
+                        FAQ 추가
+                      </button>
+                      <button
+                        type="button"
+                        className="button button--primary"
+                        onClick={() => void handleSaveContent('고객센터 FAQ', 'faq:items')}
+                        disabled={isSavingContent}
+                        style={{ borderRadius: '14px', height: '48px' }}
+                      >
+                        <Save size={18} />
+                        {isSavingContent && savingScopeKey === 'faq:items' ? '저장 중...' : '전체 저장'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {contentMessage && savingScopeKey === 'faq:items' && (
+                    <div className="form-feedback form-feedback--success" style={{ marginBottom: '24px' }}>
+                      {contentMessage}
+                    </div>
+                  )}
+
+                  <div className="admin-faq-list">
+                    {draftSiteContent.support.faqs.map((faq, index) => (
+                      <motion.article key={index} {...fadeUp} className="admin-faq-item-card">
+                        <div className="admin-faq-item-badge">
+                          <span className="admin-faq-id">ID: {index + 4}</span>
+                          <span className="admin-faq-cat-tag" style={{ color: 'var(--brand)', background: 'var(--brand-soft)' }}>{faq.category}</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="admin-modal-close"
+                          style={{ top: '24px', right: '24px' }}
+                          onClick={() => {
+                            setDraftSiteContent(current => ({
+                              ...current,
+                              support: {
+                                ...current.support,
+                                faqs: current.support.faqs.filter((_, i) => i !== index)
+                              }
+                            }));
+                          }}
+                        >
+                          <Trash2 size={18} color="#94a3b8" />
+                        </button>
+                        <h3 className="admin-faq-question">Q. {faq.question}</h3>
+                        <p className="admin-faq-answer">A. {faq.answer}</p>
+                      </motion.article>
+                    ))}
+                  </div>
+
+                  {/* Category Management Modal */}
+                  {isCategoryModalOpen && (
+                    <div className="admin-modal-overlay">
+                      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="admin-modal-content">
+                        <button type="button" className="admin-modal-close" onClick={() => setIsCategoryModalOpen(false)}>
+                          <Plus size={24} style={{ transform: 'rotate(45deg)' }} />
+                        </button>
+                        <div className="admin-modal-header">
+                          <Plus size={24} style={{ color: 'var(--brand)' }} />
+                          <h2>FAQ 카테고리 관리</h2>
+                        </div>
+                        
+                        <div className="admin-modal-cat-add">
+                          <input
+                            type="text"
+                            className="admin-modal-input"
+                            placeholder="새 카테고리명 입력"
+                            value={newCategoryName}
+                            onChange={(e) => setNewCategoryName(e.target.value)}
+                          />
+                          <button type="button" className="admin-btn-cat-add" onClick={handleAddCategory}>
+                            + 추가
+                          </button>
+                        </div>
+
+                        <div className="admin-cat-list">
+                          {draftSiteContent.support.faqCategories.filter(c => c !== '전체').map((cat, idx) => (
+                            <div key={idx} className="admin-cat-item">
+                              <div className="admin-cat-info">
+                                <span className="admin-cat-index">{idx + 1}</span>
+                                <span className="admin-cat-name">{cat}</span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <span className="admin-cat-count">
+                                  {draftSiteContent.support.faqs.filter(f => f.category === cat).length}건
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setDraftSiteContent(current => ({
+                                      ...current,
+                                      support: {
+                                        ...current.support,
+                                        faqCategories: current.support.faqCategories.filter(c => c !== cat)
+                                      }
+                                    }));
+                                  }}
+                                  style={{ border: 'none', background: 'none', padding: '4px', cursor: 'pointer' }}
+                                >
+                                  <Trash2 size={14} color="#94a3b8" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="admin-cat-footer-note">
+                          카테고리명을 수정하면 해당 카테고리의 FAQ도 자동으로 업데이트됩니다.
+                        </p>
+                      </motion.div>
+                    </div>
+                  )}
+
+                  {/* Add FAQ Modal */}
+                  {isFaqModalOpen && (
+                    <div className="admin-modal-overlay">
+                      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="admin-modal-content">
+                        <button type="button" className="admin-modal-close" onClick={() => setIsFaqModalOpen(false)}>
+                          <Plus size={24} style={{ transform: 'rotate(45deg)' }} />
+                        </button>
+                        <div className="admin-modal-header">
+                          <h2>새 FAQ 등록</h2>
+                        </div>
+                        
+                        <div className="admin-modal-form">
+                          <div className="admin-modal-grid">
+                            <div className="admin-modal-field">
+                              <label>카테고리</label>
+                              <select
+                                className="admin-modal-input"
+                                value={faqForm.category}
+                                onChange={(e) => setFaqForm({ ...faqForm, category: e.target.value })}
+                              >
+                                {draftSiteContent.support.faqCategories.filter(c => c !== '전체').map(cat => (
+                                  <option key={cat} value={cat}>{cat}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="admin-modal-field">
+                              <label>노출 순서</label>
+                              <input
+                                type="number"
+                                className="admin-modal-input"
+                                value={faqForm.order}
+                                onChange={(e) => setFaqForm({ ...faqForm, order: parseInt(e.target.value) })}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="admin-modal-field">
+                            <label>질문 (Question)</label>
+                            <input
+                              type="text"
+                              className="admin-modal-input"
+                              placeholder="질문을 입력해주세요"
+                              value={faqForm.question}
+                              onChange={(e) => setFaqForm({ ...faqForm, question: e.target.value })}
+                            />
+                          </div>
+
+                          <div className="admin-modal-field">
+                            <label>답변 (Answer)</label>
+                            <textarea
+                              className="admin-modal-textarea"
+                              placeholder="상세 답변 내용을 입력해주세요"
+                              value={faqForm.answer}
+                              onChange={(e) => setFaqForm({ ...faqForm, answer: e.target.value })}
+                            />
+                          </div>
+
+                          <div className="admin-modal-footer">
+                            <button type="button" className="admin-btn-cancel" onClick={() => setIsFaqModalOpen(false)}>
+                              취소
+                            </button>
+                            <button type="button" className="admin-btn-submit" style={{ background: 'var(--brand)' }} onClick={handleAddFaq}>
+                              <Save size={20} />
+                              FAQ 등록하기
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    </div>
+                  )}
+                </div>
               ) : null}
             </div>
           </div>

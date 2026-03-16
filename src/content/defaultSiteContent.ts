@@ -2,426 +2,330 @@ import type { SitePageContent } from '../types/siteContent';
 
 function createTextLogoDataUrl(label: string, width = 720, height = 240, fontSize = 34) {
   const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" fill="none">
-      <rect width="${width}" height="${height}" rx="32" fill="white"/>
-      <text x="${width / 2}" y="${Math.round(height * 0.55)}" text-anchor="middle" fill="#6B7280" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="700" letter-spacing="2">
-        ${label}
-      </text>
+    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+      <rect width="100%" height="100%" fill="#f1f5f9"/>
+      <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="${fontSize}" font-weight="bold" fill="#475569">${label}</text>
     </svg>
   `;
-
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+  return `data:image/svg+xml;base64,${btoa(svg)}`;
 }
 
 export const defaultSiteContent: SitePageContent = {
   home: {
-    servicePreviewEyebrow: 'Service Preview',
-    heroEyebrow: 'MICEPARTNER',
-    heroBadge: '행사 운영부터 결과 정리까지 한 흐름으로 연결합니다.',
+    servicePreviewEyebrow: 'Our Services',
+    servicePreviewImageUrl:
+      'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1200&q=80',
+    heroEyebrow: 'Professional MICE Partner',
+    heroBadge: 'Leading the future of events',
     heroImageUrl:
-      'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1920&q=80',
-    heroPanelStatus: 'Current Scope',
-    heroPanelTitle: '기업 소개, 운영 경험, 문의 전환을 하나의 웹 흐름으로 정리했습니다.',
+      'https://images.unsplash.com/photo-1540575861501-7c0351a773a5?auto=format&fit=crop&w=2000&q=80',
+    heroSlides: [
+      {
+        title: '행사기획부터 운영까지',
+        description:
+          '대전과 충청권 현장 환경을 이해한 운영 파트너로서 행사 홈페이지, 등록 운영, 참가자 안내, 현장 진행까지 하나의 흐름으로 연결합니다.',
+        imageUrl:
+          'https://images.unsplash.com/photo-1540575861501-7c0351a773a5?auto=format&fit=crop&w=2000&q=80',
+      },
+      {
+        title: '브랜드와 목적에 맞는 운영 구조 설계',
+        description:
+          '설명회, 포럼, 기업 행사, 공공 프로젝트까지 목적에 맞는 운영 범위를 먼저 정리하고 실제 실행 가능한 구조로 제안합니다.',
+        imageUrl:
+          'https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=2000&q=80',
+      },
+      {
+        title: '현장 데이터와 결과까지 이어지는 관리',
+        description:
+          '참가 신청부터 체크인, 현장 응대, 결과 정리까지 운영 데이터를 남겨 다음 프로젝트에도 이어질 수 있는 기반을 만듭니다.',
+        imageUrl:
+          'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=2000&q=80',
+      },
+    ],
+    heroPanelStatus: '운영 중인 행사',
+    heroPanelTitle: '실시간 등록 현황',
     heroPanelMetrics: [
-      { label: '핵심 메뉴', value: '6개' },
-      { label: '문의 수집', value: '실시간 저장' },
-      { label: '관리 방식', value: '관리자 직접 편집' },
+      { label: '참가 신청', value: '1,284' },
+      { label: '현장 체크인', value: '856' },
     ],
     heroStats: [
-      { label: '주요 고객군', value: '기업 · 기관', detail: '포럼, 학회, 기업행사, 설명회, 공공 프로젝트' },
-      { label: '제공 범위', value: '기획 ~ 운영', detail: '준비, 현장 운영, 사후 정리까지 한 팀으로 대응' },
-      { label: '콘텐츠 운영', value: '관리자 편집', detail: '회사 소개, 포트폴리오, 자료실 문구를 직접 수정 가능' },
+      { label: '누적 행사', value: '450+', detail: '성공적인 컨퍼런스 및 포럼 운영' },
+      { label: '파트너사', value: '120+', detail: '공공기관 및 글로벌 기업 협업' },
+      { label: '고객 만족도', value: '98%', detail: '다시 찾는 MICE 전문 파트너' },
     ],
     positioningCards: [
       {
-        title: '실행 가능한 제안',
-        description: '제안서 문구에 머무르지 않고 실제 운영 가능한 일정, 역할, 산출물을 같이 제시합니다.',
-        iconKey: 'building',
-        imageUrl: '',
+        title: '통합 운영 솔루션',
+        description: '기획부터 현장 운영, 사후 관리까지 복잡한 행사 프로세스를 하나의 흐름으로 연결합니다.',
+        iconKey: 'layers',
       },
       {
-        title: '현장 중심 경험',
-        description: '등록 데스크, 체크인, 세션 운영, 협력사 조율 등 현장 리듬에 맞는 의사결정을 지원합니다.',
-        iconKey: 'ticket',
-        imageUrl: '',
+        title: '데이터 기반 의사결정',
+        description: '실시간 등록 데이터와 참가자 분석을 통해 행사의 성과를 정밀하게 측정하고 보고합니다.',
+        iconKey: 'bar-chart',
       },
       {
-        title: '보고 가능한 결과',
-        description: '행사 종료 후 내부 보고와 다음 행사 개선까지 이어질 수 있게 결과를 정리합니다.',
-        iconKey: 'chart',
-        imageUrl: '',
+        title: '현장 중심 실행력',
+        description: '수많은 현장 경험을 보유한 전문 스태프가 돌발 상황에도 유연하게 대처하며 완벽한 운영을 보장합니다.',
+        iconKey: 'shield',
       },
     ],
     proofItems: [
-      { label: '회사 소개 페이지', iconKey: 'badge' },
-      { label: '서비스 안내 페이지', iconKey: 'badge' },
-      { label: '포트폴리오 및 자료실', iconKey: 'badge' },
+      { label: '실시간 참가자 관리', iconKey: 'users' },
+      { label: '맞춤형 등록 시스템', iconKey: 'check-square' },
+      { label: '전문 현장 운영팀', iconKey: 'award' },
+      { label: '정밀 성과 분석 보고', iconKey: 'trending-up' },
     ],
     partnerLogos: [
-      { name: 'KOREA HEATING', logoUrl: createTextLogoDataUrl('KOREA HEATING') },
-      { name: 'KIRD', logoUrl: createTextLogoDataUrl('KIRD') },
-      { name: 'SEOUL NATIONAL', logoUrl: createTextLogoDataUrl('SEOUL NATIONAL') },
-      { name: 'KOREA EDU', logoUrl: createTextLogoDataUrl('KOREA EDU') },
-      { name: 'EWHA WOMANS', logoUrl: createTextLogoDataUrl('EWHA WOMANS') },
-      { name: 'HANWHA RESORTS', logoUrl: createTextLogoDataUrl('HANWHA RESORTS') },
-      { name: 'SAMSUNG MEDICAL', logoUrl: createTextLogoDataUrl('SAMSUNG MEDICAL') },
-      { name: 'BIFAN', logoUrl: createTextLogoDataUrl('BIFAN') },
-      { name: 'JEONJU IFF', logoUrl: createTextLogoDataUrl('JEONJU IFF') },
-      { name: 'MICE ALLIANCE', logoUrl: createTextLogoDataUrl('MICE ALLIANCE') },
+      { name: '대전광역시', imageUrl: createTextLogoDataUrl('DAEJEON') },
+      { name: '세종특별자치시', imageUrl: createTextLogoDataUrl('SEJONG') },
+      { name: '한국관광공사', imageUrl: createTextLogoDataUrl('KTO') },
+      { name: '대전관광공사', imageUrl: createTextLogoDataUrl('DTO') },
+      { name: '충청남도', imageUrl: createTextLogoDataUrl('CHUNGNAM') },
+      { name: 'KAIST', imageUrl: createTextLogoDataUrl('KAIST') },
+      { name: '연구개발특구진흥재단', imageUrl: createTextLogoDataUrl('INNOPOLIS') },
+      { name: '국가과학기술연구회', imageUrl: createTextLogoDataUrl('NST') },
     ],
-    primaryCtaLabel: '서비스 보기',
+    primaryCtaLabel: '서비스 안내',
     primaryCtaHref: '/services',
-    secondaryCtaLabel: '포트폴리오 보기',
+    secondaryCtaLabel: '포트폴리오',
     secondaryCtaHref: '/cases',
-    ctaButtonLabel: '문의 페이지로 이동',
+    ctaButtonLabel: '지금 문의하기',
     ctaImageUrl:
-      'https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=2000&q=80',
   },
   services: {
-    introEyebrow: 'Services',
+    introEyebrow: 'What We Do',
     modulesEyebrow: 'Service Modules',
-    flowEyebrow: 'Working Flow',
+    flowEyebrow: 'Work Flow',
     heroImageUrl:
-      'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?auto=format&fit=crop&w=2000&q=80',
     modules: [
       {
-        title: '행사 기획 및 운영',
-        description: '행사 목적과 대상에 맞춰 프로그램 구성, 운영 시나리오, 인력 운영안을 함께 정리합니다.',
-        iconKey: 'layout',
-        imageUrl: '',
-        points: ['운영 시나리오 정리', '현장 동선 설계', '운영 체크리스트 작성'],
+        title: '행사 기획 및 컨설팅',
+        description: '목적에 맞는 컨셉 설정부터 예산 수립, 장소 선정까지 전략적인 가이드를 제공합니다.',
+        iconKey: 'briefcase',
       },
       {
-        title: '행사 홈페이지 제작',
-        description: '참가자 안내와 문의 전환에 필요한 행사형 웹페이지를 빠르게 구성합니다.',
+        title: '온라인 플랫폼 구축',
+        description: '행사 전용 홈페이지, 온라인 등록, 초청장 발송 등 디지털 소통 창구를 구축합니다.',
         iconKey: 'globe',
-        imageUrl: '',
-        points: ['행사 소개 페이지', '연사/프로그램 안내', '문의 및 신청 연결'],
       },
       {
-        title: '참가자 등록 및 응대',
-        description: '사전등록, 현장 접수, 문의 대응까지 참가자 커뮤니케이션 흐름을 설계합니다.',
-        iconKey: 'file',
-        imageUrl: '',
-        points: ['참가자 명단 관리', '안내 메일 정리', '현장 등록 프로세스'],
+        title: '참가자 및 연사 관리',
+        description: '등록 문의 응대, 연사 섭외 및 케어, VIP 의전 등 사람 중심의 서비스를 제공합니다.',
+        iconKey: 'users',
       },
       {
-        title: '현장 체크인 지원',
-        description: '행사 당일 등록 데스크 운영과 참석 확인 동선을 체계적으로 정리합니다.',
-        iconKey: 'qr',
-        imageUrl: '',
-        points: ['QR 체크인 지원', '배지/명찰 운영', '안내 스태프 운영'],
+        title: '현장 운영 및 시스템',
+        description: '등록 데스크, 인력 배치, 시스템 장비 운영 등 현장의 모든 요소를 컨트롤합니다.',
+        iconKey: 'terminal',
       },
       {
-        title: '협력사 커뮤니케이션',
-        description: '장소, 장비, 인쇄물, 케이터링, 인력 등 외부 파트너와의 협업을 조율합니다.',
-        iconKey: 'handshake',
-        imageUrl: '',
-        points: ['협력사 일정 조율', '발주/산출물 체크', '현장 이슈 대응'],
+        title: '홍보 및 디자인',
+        description: '키 비주얼 제작, 온/오프라인 홍보물 디자인, 홍보 채널 운영을 지원합니다.',
+        iconKey: 'palette',
       },
       {
-        title: '사후 결과 정리',
-        description: '행사 종료 후 사진, 결과, 이슈, 개선 포인트를 남겨 다음 운영에 반영할 수 있게 합니다.',
-        iconKey: 'calendar',
-        imageUrl: '',
-        points: ['결과 리포트 정리', '자료 아카이빙', '개선 포인트 제안'],
+        title: '결과 보고 및 분석',
+        description: '참석 통계, 만족도 조사, 정산 보고 등 행사의 성과를 데이터로 정리합니다.',
+        iconKey: 'clipboard',
       },
     ],
     flowSteps: [
       {
-        step: '01',
-        title: '초기 상담',
-        description: '행사 목적과 현재 준비 상태를 기준으로 필요한 지원 범위를 정리합니다.',
+        step: 'STEP 01',
+        title: '요구사항 분석',
+        description: '행사의 목적, 규모, 타겟을 분석하여 최적의 운영 방향을 제안합니다.',
       },
       {
-        step: '02',
-        title: '운영 설계',
-        description: '세부 일정, 제작물, 홈페이지, 응대 흐름, 현장 역할을 실행 단위로 나눕니다.',
+        step: 'STEP 02',
+        title: '전략 기획',
+        description: '세부 실행 계획, 예산안, 추진 일정을 수립합니다.',
       },
       {
-        step: '03',
+        step: 'STEP 03',
+        title: '준비 및 구축',
+        description: '플랫폼 구축, 홍보물 제작, 인력 교육 등 실행을 준비합니다.',
+      },
+      {
+        step: 'STEP 04',
         title: '현장 실행',
-        description: '행사 당일 돌발 이슈와 운영 속도에 대응할 수 있게 운영 체계를 가동합니다.',
+        description: '행사 당일 전문 인력이 배치되어 완벽한 운영을 수행합니다.',
+      },
+      {
+        step: 'STEP 05',
+        title: '성과 분석',
+        description: '데이터 분석을 통한 결과 보고 및 피드백을 전달합니다.',
       },
     ],
   },
   cases: {
-    introEyebrow: 'Portfolio',
-    categoriesEyebrow: 'Portfolio Categories',
-    allCategoryLabel: '전체',
-    cardsEyebrow: 'Portfolio Cards',
-    detailLinkLabel: '상세 구조 보기',
-    emptyStateMessage: '선택한 카테고리에 연결된 사례가 없습니다.',
-    categories: ['포럼 및 설명회', '학회 및 세미나', '기업 초청 행사', '현장 등록 및 체크인'],
+    introEyebrow: 'Our Works',
+    categoriesEyebrow: 'Categories',
+    allCategoryLabel: '전체보기',
+    cardsEyebrow: 'Success Stories',
+    searchPlaceholder: '사례명, 고객사, 카테고리 검색',
+    searchButtonLabel: '검색',
+    totalLabel: '전체',
+    currentPageLabel: '현재페이지',
+    detailLinkLabel: '자세히 보기',
+    emptyStateMessage: '해당 카테고리의 사례가 아직 등록되지 않았습니다.',
+    emptyStateDescription: '검색어 또는 카테고리 조건을 다시 확인해 주세요.',
+    categories: ['컨퍼런스', '포럼 및 설명회', '기업 초청 행사', '정부 및 공공 행사'],
     entries: [
       {
-        slug: 'smart-city-forum-2025',
+        slug: 'global-ict-forum-2025',
+        title: '2025 글로벌 ICT 산업 포럼',
         category: '포럼 및 설명회',
-        tags: ['포럼 및 설명회'],
-        title: '스마트시티 포럼 운영',
-        cardDescription: '행사 홈페이지, 참가자 등록, 현장 운영, 결과 정리까지 연결한 포럼 운영 사례입니다.',
-        outcome: '참가자 동선 혼선 없이 등록 완료, 현장 응대 속도 개선',
-        client: '대전 지역 공공기관',
-        period: '2025.09',
-        scope: ['행사 안내 페이지 구축', '사전등록 관리', '현장 운영 스태프 운영', '사후 결과 정리'],
-        summary:
-          '스마트시티 정책 포럼을 준비하며 참가자 안내 채널과 현장 응대 기준을 동시에 정리해야 했습니다. 발표 세션과 네트워킹 세션이 함께 있는 구조라 동선 안내와 등록 흐름의 정밀도가 중요했습니다.',
-        challenge:
-          '짧은 준비 기간 안에 공공기관 보고용 정보와 참가자 친화적인 안내 구조를 함께 맞춰야 했고, 행사 당일에는 현장 응대 속도와 질의 대응 기준을 일정하게 유지해야 했습니다.',
-        approach:
-          '행사 소개 페이지와 참석 안내 문구를 먼저 정리한 뒤, 등록 데스크 운영 기준과 현장 스태프 역할표를 맞췄습니다. 발표 세션 이동 흐름과 네트워킹 구간 안내도 별도 시나리오로 준비했습니다.',
-        result:
-          '사전 안내와 현장 운영이 같은 기준으로 움직이면서 등록 지연 없이 행사를 시작했고, 종료 후 결과 자료와 개선 메모를 정리해 다음 행사 제안 자료로 바로 활용할 수 있었습니다.',
-        coverImageUrl:
-          'https://images.unsplash.com/photo-1515169067868-5387ec356754?auto=format&fit=crop&w=1200&q=80',
-        gallery: [
-          {
-            imageUrl:
-              'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?auto=format&fit=crop&w=900&q=80',
-            caption: '등록 데스크와 입장 동선을 사전 시뮬레이션한 현장 구성',
-          },
-          {
-            imageUrl:
-              'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?auto=format&fit=crop&w=900&q=80',
-            caption: '메인 세션 진행 장면과 참가자 안내 운영',
-          },
-        ],
+        updatedAt: '2026-03-16',
+        description: '전 세계 20개국 ICT 전문가들이 참여한 대규모 하이브리드 포럼 운영',
+        outcome: '오프라인 500명, 온라인 2,000명 참여 / 운영 만족도 4.8점',
+        imageUrl:
+          'https://images.unsplash.com/photo-1540575861501-7c0351a773a5?auto=format&fit=crop&w=1200&q=80',
+        content:
+          '국내외 전문가들을 초청하여 진행된 이번 포럼은 온/오프라인 동시 송출 시스템을 기반으로 안정적인 기술 운영과 체계적인 참가자 관리가 돋보인 사례입니다.',
       },
       {
-        slug: 'medical-seminar-checkin',
-        category: '학회 및 세미나',
-        tags: ['학회 및 세미나', '현장 등록 및 체크인'],
-        title: '의료 세미나 체크인 운영',
-        cardDescription: '연사 안내, 현장 체크인, 좌석 안내와 세션별 운영 흐름을 정리한 세미나 사례입니다.',
-        outcome: '입장 대기 시간 단축, 참가자 응대 표준화',
-        client: '전문학회 운영사',
-        period: '2025.11',
-        scope: ['체크인 동선 설계', '현장 안내 운영', '연사/세션 안내', '현장 이슈 대응'],
-        summary:
-          '의료 세미나는 참석자 정보 확인과 세션별 입장 관리가 중요했습니다. 행사 규모 대비 등록 시간이 짧아 현장 혼잡을 줄이는 설계가 핵심이었습니다.',
-        challenge:
-          '참석자 확인 방식이 여러 유형으로 나뉘어 있어 등록 데스크 처리 속도를 높이면서도 오기입과 누락을 줄이는 방식이 필요했습니다.',
-        approach:
-          '체크인 구간을 역할별로 분리하고, 문의 유형별 응대 문구를 현장 스태프에게 사전 배포했습니다. 세션 이동이 많은 시간대에는 별도 안내 스태프를 배치했습니다.',
-        result:
-          '현장 체류 시간을 줄이고 등록 대기 구간을 안정적으로 운영했으며, 종료 후에는 참가자 유형별 응대 메모를 남겨 추후 반복 행사 운영 효율을 높일 수 있었습니다.',
-        coverImageUrl:
-          'https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=1200&q=80',
-        gallery: [
-          {
-            imageUrl:
-              'https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=900&q=80',
-            caption: '체크인 현장 운영팀 브리핑 장면',
-          },
-          {
-            imageUrl:
-              'https://images.unsplash.com/photo-1543269865-cbf427effbad?auto=format&fit=crop&w=900&q=80',
-            caption: '세션별 안내 동선을 시각화한 행사장 구성',
-          },
-        ],
+        slug: 'regional-mice-alliance-day',
+        title: '지역 MICE 얼라이언스 네트워킹 데이',
+        category: '정부 및 공공 행사',
+        updatedAt: '2026-03-12',
+        description: '지역 내 MICE 업계 관계자들의 협력을 위한 네트워킹 행사 기획 및 운영',
+        outcome: '80개 회원사 참여 / 12건의 신규 비즈니스 매칭 성사',
+        imageUrl:
+          'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=1200&q=80',
+        content:
+          '회원사 간의 실질적인 교류를 목적으로 기획된 이번 행사는 맞춤형 비즈니스 매칭 시스템과 몰입도 높은 프로그램 구성을 통해 참가자들의 큰 호응을 얻었습니다.',
       },
       {
-        slug: 'vip-brand-invitation',
+        slug: 'tech-startup-demo-day',
+        title: '테크 스타트업 통합 데모데이',
         category: '기업 초청 행사',
-        tags: ['기업 초청 행사'],
-        title: '브랜드 VIP 초청 행사',
-        cardDescription: '초청 대상 관리, 응대 동선, 현장 안내와 사후 보고를 함께 수행한 기업 행사 사례입니다.',
-        outcome: 'VIP 응대 프로세스 정리, 현장 돌발 이슈 최소화',
-        client: 'B2B 브랜드 마케팅팀',
-        period: '2026.01',
-        scope: ['초청 대상 커뮤니케이션', '현장 응대', '운영 시나리오 작성', '사후 결과 보고'],
-        summary:
-          '기업 VIP 초청 행사는 초청 대상별 응대 기준과 일정 관리가 매우 중요했습니다. 현장 운영의 세밀함과 브랜드 경험의 일관성이 동시에 필요했습니다.',
-        challenge:
-          '초청 대상이 다층적이고 현장 일정 변경 가능성이 높아, 모든 운영 인력이 동일한 기준으로 즉시 대응할 수 있어야 했습니다.',
-        approach:
-          '행사 전 초청 대상 그룹을 세분화하고 현장 스태프별 역할표를 만들어 공유했습니다. 행사 당일에는 주요 이슈 보고 라인을 단순화해 대응 속도를 높였습니다.',
-        result:
-          '초청 대상 안내와 현장 응대의 균형을 맞추며 일관된 행사 경험을 만들었고, 종료 후에는 운영 리포트와 개선 제안을 정리해 후속 행사 기획에 활용했습니다.',
-        coverImageUrl:
-          'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=1200&q=80',
-        gallery: [
-          {
-            imageUrl:
-              'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=900&q=80',
-            caption: '브랜드 초청 행사 메인 공간 운영',
-          },
-          {
-            imageUrl:
-              'https://images.unsplash.com/photo-1503428593586-e225b39bddfe?auto=format&fit=crop&w=900&q=80',
-            caption: '현장 응대와 안내 동선 운영 모습',
-          },
-        ],
+        updatedAt: '2026-03-09',
+        description: '유망 스타트업의 투자 유치를 위한 IR 피칭 및 전시 부스 운영',
+        outcome: '30개 스타트업 참여 / 누적 투자 상담액 50억원 달성',
+        imageUrl:
+          'https://images.unsplash.com/photo-1559136555-9303baea8ebd?auto=format&fit=crop&w=1200&q=80',
+        content:
+          '스타트업의 기술력을 가장 잘 보여줄 수 있는 전시 동선 설계와 매끄러운 IR 피칭 진행을 통해 투자자들과 스타트업 간의 연결을 성공적으로 지원했습니다.',
       },
     ],
   },
   resources: {
-    introEyebrow: 'Resources',
-    sectionsEyebrow: 'Sections',
-    noticesEyebrow: 'Notices',
-    downloadsEyebrow: 'Downloads',
-    noticeLinkLabel: '공지 상세 보기',
-    resourceLinkLabel: '자료 상세 보기',
+    introEyebrow: 'Resource Center',
+    sectionsEyebrow: 'Board',
+    noticesEyebrow: 'Latest News',
+    downloadsEyebrow: 'Archives',
+    noticeLinkLabel: '전체 뉴스 보기',
+    resourceLinkLabel: '자료실 바로가기',
     categories: [
-      { title: '공지사항', description: '회사 소식, 일정 안내, 운영 업데이트를 게시하는 영역입니다.' },
-      { title: '자료실', description: '회사소개서, 서비스 소개서, 포트폴리오 자료를 정리하는 공간입니다.' },
-      { title: '레퍼런스', description: '보도자료, 외부 소개 링크, 협력 콘텐츠를 함께 소개할 수 있습니다.' },
+      { id: 'all', label: '전체' },
+      { id: 'notice', label: '공지' },
+      { id: 'press', label: '보도자료' },
+      { id: 'event', label: '행사안내' },
     ],
     notices: [
       {
-        slug: '2026-service-guide-update',
-        category: '서비스',
-        title: '2026 서비스 안내 자료 업데이트',
-        date: '2026-03-10',
-        summary: '회사소개서와 서비스 안내서 최신 버전을 자료실에 반영했습니다.',
-        body:
-          '마이스파트너의 2026년 기준 서비스 소개 자료를 업데이트했습니다.\n\n이번 버전에는 행사 홈페이지 구축 범위, 참가자 안내 흐름, 현장 운영 지원 범위를 더 구체적으로 정리했습니다.\n\n영업 제안 또는 미팅 전에 필요한 자료가 있으면 문의 페이지를 통해 요청해 주세요.',
-        coverImageUrl:
-          'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1200&q=80',
-        attachments: [{ label: '서비스 안내서 요청', url: '/contact' }],
-      },
-      {
-        slug: 'spring-forum-operation-notice',
-        category: '이벤트',
-        title: '봄 시즌 포럼 운영 상담 접수 중',
-        date: '2026-03-08',
-        summary: '포럼, 설명회, 세미나 운영 상담을 순차적으로 받고 있습니다.',
-        body:
-          '상반기 포럼 및 설명회 시즌을 대비해 운영 상담을 접수하고 있습니다.\n\n행사 홈페이지 구축, 참가자 안내, 현장 체크인 운영이 필요한 경우 미리 문의해 주시면 일정과 범위를 빠르게 검토해 드립니다.',
-        coverImageUrl:
-          'https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=1200&q=80',
-        attachments: [],
-      },
-      {
-        slug: '2026-checkin-flow-update',
-        category: '업데이트',
-        title: '현장 체크인 동선 운영 기준을 업데이트했습니다.',
-        date: '2026-03-06',
-        summary: '등록 대기 분산과 현장 응대 흐름을 반영한 체크인 운영 기준을 정리했습니다.',
-        body:
-          '현장 등록 대기 분산과 안내 데스크 운영 기준을 업데이트했습니다.\n\n참가자 동선, 현장 문의 응대, 출력물 배치 방식까지 포함한 체크리스트를 정리해 내부 운영 문서에 반영했습니다.',
-        coverImageUrl:
-          'https://images.unsplash.com/photo-1515169067868-5387ec356754?auto=format&fit=crop&w=1200&q=80',
-        attachments: [{ label: '운영 문의하기', url: '/contact' }],
-      },
-      {
-        slug: 'partner-briefing-open',
+        slug: 'web-renewal-2026',
         category: '공지',
-        title: '협력 파트너 사전 브리핑 신청을 받고 있습니다.',
-        date: '2026-03-05',
-        summary: '협력업체와 함께하는 현장 운영 브리핑 일정을 순차적으로 잡고 있습니다.',
+        title: '마이스파트너 공식 홈페이지 리뉴얼 안내',
+        date: '2026. 03. 12',
+        summary: '더 나은 서비스 제공을 위해 마이스파트너 홈페이지가 새롭게 단장했습니다.',
         body:
-          '행사 운영 전 협력업체와 함께 진행하는 사전 브리핑 신청을 받고 있습니다.\n\n무대, 안내, 등록, 현장 동선 담당 파트너가 함께 보는 운영 기준 문서를 미리 공유해 현장 혼선을 줄이는 방식으로 운영합니다.',
-        coverImageUrl:
-          'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1200&q=80',
-        attachments: [],
+          '안녕하세요, 마이스파트너입니다. 고객 여러분께 더욱 편리하고 전문적인 정보를 전달하기 위해 홈페이지를 전면 리뉴얼했습니다. 앞으로도 많은 관심 부탁드립니다.',
+        attachments: [{ label: '리뉴얼 상세 안내.pdf', url: '#' }],
       },
       {
-        slug: 'website-open-schedule',
-        category: '작업',
-        title: '행사 홈페이지 오픈 전 QA 일정을 안내드립니다.',
-        date: '2026-03-04',
-        summary: '참가 신청 전 마지막 점검 일정과 확인 항목을 공유합니다.',
+        slug: 'mice-industry-report-q1',
+        category: '보도자료',
+        title: '2026년 1분기 MICE 산업 트렌드 리포트 발매',
+        date: '2026. 02. 28',
+        summary: '최근 급변하는 글로벌 MICE 시장의 핵심 트렌드 5가지를 정리했습니다.',
         body:
-          '행사 홈페이지 오픈 전 QA 일정을 안내드립니다.\n\n페이지별 문구, 폼 연결, 메일 수신, 관리자 반영 상태를 마지막으로 점검한 뒤 오픈하는 순서로 진행합니다.',
-        coverImageUrl:
-          'https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1200&q=80',
-        attachments: [],
+          '마이스파트너 부설 연구소에서 발행한 이번 리포트는 하이브리드 이벤트의 진화와 AI 기술의 실제 적용 사례를 중심으로 구성되었습니다.',
+        attachments: [{ label: '트렌드리포트_샘플.pdf', url: '#' }],
       },
       {
-        slug: 'proposal-material-request-guide',
-        category: '공공기관',
-        title: '제안 자료 요청 시 필요한 기본 정보 안내',
-        date: '2026-03-03',
-        summary: '제안서 요청 전에 일정, 규모, 운영 범위를 알려주시면 검토가 빨라집니다.',
+        slug: 'new-office-relocation',
+        category: '공지',
+        title: '사무실 이전 및 연락처 변경 안내',
+        date: '2026. 01. 15',
+        summary: '마이스파트너가 새로운 공간에서 더 나은 서비스를 시작합니다.',
         body:
-          '제안 자료 요청 시 행사 일정, 예상 규모, 필요한 운영 범위를 함께 알려주시면 검토가 훨씬 빨라집니다.\n\n특히 공공기관 행사나 설명회 유형은 필수 운영 범위가 비슷해 사전 정보만 정리되어 있어도 빠르게 자료를 드릴 수 있습니다.',
-        coverImageUrl:
-          'https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=1200&q=80',
-        attachments: [{ label: '문의 페이지로 이동', url: '/contact' }],
+          '사업 확장으로 인해 사무실을 이전하게 되었습니다. 새로운 주소와 변경된 전화번호를 확인해 주시기 바랍니다.',
+        attachments: [],
       },
     ],
     items: [
       {
         slug: 'company-profile-2026',
-        title: '마이스파트너 회사소개서',
+        title: '마이스파트너 회사소개서 (2026)',
         type: 'PDF',
         description: '회사 소개, 운영 범위, 협업 방식이 정리된 기본 회사소개서입니다.',
-        body:
-          '회사소개서는 마이스파트너가 어떤 유형의 행사 운영을 지원하는지, 어떤 방식으로 협업하는지 정리한 기본 자료입니다.\n\n미팅 전 검토 자료나 내부 공유용 문서로 활용할 수 있습니다.',
-        downloadLabel: '문의 후 자료 요청',
-        downloadUrl: '/contact',
-        fileName: 'micepartner-company-profile.pdf',
-        version: 'v1.0',
-        updatedAt: '2026-03-10',
-        coverImageUrl:
-          'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1200&q=80',
-      },
-      {
-        slug: 'service-deck-2026',
-        title: '서비스 소개서',
-        type: 'PDF',
-        description: '행사 기획, 홈페이지, 등록 응대, 현장 운영 범위를 정리한 자료입니다.',
-        body:
-          '서비스 소개서는 행사 준비부터 현장 운영까지 어떤 업무를 맡을 수 있는지 항목별로 정리한 문서입니다.\n\n제안 범위 협의 전에 참고 자료로 활용하기 좋습니다.',
-        downloadLabel: '서비스 소개서 문의',
-        downloadUrl: '/contact',
-        fileName: 'micepartner-service-deck.pdf',
-        version: 'v1.1',
-        updatedAt: '2026-03-10',
+        fileName: 'micepartner-profile-2026.pdf',
+        version: 'v2.1',
+        updatedAt: '2026-03-01',
         coverImageUrl:
           'https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=1200&q=80',
+        downloadUrl: '/faq',
       },
       {
-        slug: 'portfolio-deck-2026',
-        title: '포트폴리오 자료',
+        slug: 'service-guide-deck',
+        title: 'MICE 통합 운영 서비스 가이드',
         type: 'PDF',
-        description: '대표 운영 사례와 협업 포인트를 요약한 자료입니다.',
-        body:
-          '포트폴리오 자료에는 행사 유형별 핵심 사례와 운영 포인트를 간단히 정리했습니다.\n\n고객 미팅 전 비슷한 유형의 행사 경험을 공유할 때 사용할 수 있습니다.',
-        downloadLabel: '포트폴리오 문의',
-        downloadUrl: '/contact',
+        description: '기획부터 결과 보고까지 각 단계별 상세 서비스 내용이 포함된 가이드입니다.',
+        fileName: 'micepartner-service-guide.pdf',
+        version: 'v1.5',
+        updatedAt: '2026-02-15',
+        coverImageUrl:
+          'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=1200&q=80',
+        downloadUrl: '/faq',
+      },
+      {
+        slug: 'portfolio-collection',
+        title: '주요 행사 운영 포트폴리오 모음',
+        type: 'PDF',
+        description: '최근 3년간 진행된 주요 컨퍼런스 및 포럼의 운영 사례집입니다.',
         fileName: 'micepartner-portfolio-deck.pdf',
         version: 'v1.0',
         updatedAt: '2026-03-10',
         coverImageUrl:
           'https://images.unsplash.com/photo-1520607162513-77705c0f0d4a?auto=format&fit=crop&w=1200&q=80',
+        downloadUrl: '/faq',
       },
     ],
   },
   about: {
-    introEyebrow: 'About',
-    identityEyebrow: 'Who We Are',
-    strengthEyebrow: 'Why Mice Partner',
-    processEyebrow: 'Working Process',
+    introEyebrow: 'About Us',
+    identityEyebrow: 'Our Identity',
+    strengthEyebrow: 'Strengths',
+    processEyebrow: 'Process',
     heroImageUrl:
-      'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1200&q=80',
-    messageTitle: '마이스파트너는 현장에서 바로 작동하는 운영 구조를 만드는 팀입니다.',
+      'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=2000&q=80',
+    messageTitle: '현장의 가치를 연결하는 진정한 파트너가 되겠습니다.',
     messageBody:
-      '우리는 행사 소개 문구를 예쁘게 정리하는 것보다 실제 운영 흐름이 끊기지 않게 만드는 일을 더 중요하게 생각합니다.\n\n고객이 처음 문의하는 순간부터 행사 종료 후 결과를 정리하는 시점까지, 커뮤니케이션과 현장 운영이 같은 기준으로 움직이는 구조를 만듭니다.',
+      '마이스파트너는 단순한 대행사가 아닙니다. 행사의 본질을 이해하고, 주최자의 고민을 함께 해결하며, 참가자에게는 최고의 경험을 선사하는 전문 운영 파트너입니다.\n\n우리는 대전·충청 지역의 MICE 생태계에 대한 깊은 이해를 바탕으로 실무에서 즉시 작동하는 운영 표준을 만들어가고 있습니다.',
     identityPoints: [
-      '행사 목적과 일정에 맞는 운영 범위를 먼저 정리합니다.',
-      '현장 등록, 체크인, 협력사 커뮤니케이션처럼 실제 실행 구간을 기준으로 제안합니다.',
-      '행사 종료 후 결과 정리와 다음 운영 개선까지 연결될 수 있게 기록을 남깁니다.',
+      '현장 중심의 실행력과 유연한 대응',
+      '데이터 기반의 투명한 운영 및 결과 보고',
+      '고객의 예산과 목적에 최적화된 맞춤형 솔루션',
     ],
     highlights: [
       {
-        title: '지역 기반 실행력',
-        description: '대전과 충청권 행사 운영 환경을 이해한 상태에서 빠르게 협력 체계를 만들 수 있습니다.',
-        iconKey: 'map',
-        imageUrl: '',
+        title: '검증된 실무 경험',
+        description: '정부부처, 지자체, 대기업 등 수많은 프로젝트를 완수하며 쌓아온 노하우를 제공합니다.',
+        iconKey: 'check-circle',
       },
       {
-        title: '운영 커뮤니케이션',
-        description: '주최기관, 협력사, 스태프가 같은 기준으로 움직이도록 정보 구조를 정리합니다.',
-        iconKey: 'message',
-        imageUrl: '',
+        title: '전담 인력 책임제',
+        description: '각 프로젝트마다 숙련된 전담 매니저가 배치되어 초기 소통부터 마감까지 책임집니다.',
+        iconKey: 'user-check',
       },
       {
-        title: '웹과 현장의 연결',
-        description: '웹사이트 문구, 참가자 안내, 현장 운영이 끊기지 않도록 한 흐름으로 설계합니다.',
-        iconKey: 'globe',
-        imageUrl: '',
+        title: '안정적인 인프라',
+        description: '등록 시스템, 온/오프라인 장비 등 최적화된 내부 인프라로 오류 없는 행사를 보장합니다.',
+        iconKey: 'cpu',
       },
     ],
     processSteps: [
@@ -442,175 +346,99 @@ export const defaultSiteContent: SitePageContent = {
       },
     ],
   },
-  contact: {
-    introEyebrow: 'Contact',
-    optionsEyebrow: 'Contact Options',
-    formEyebrow: 'Inquiry Form',
-    organizationLabel: '기관명',
-    organizationPlaceholder: '예: 대전 ○○기관',
-    contactNameLabel: '담당자명',
-    contactNamePlaceholder: '이름을 입력해 주세요',
-    emailLabel: '이메일',
-    emailPlaceholder: 'contact@example.com',
-    eventDateLabel: '행사 예정일',
-    eventDatePlaceholder: '예: 2026년 6월',
-    messageLabel: '문의 내용',
-    messagePlaceholder: '행사 유형, 예상 참가 인원, 필요한 기능을 적어 주세요.',
-    submitPendingLabel: '문의 저장 중...',
-    submitSuccessMessage: '문의가 저장되었습니다. 관리자 페이지에서 바로 확인할 수 있습니다.',
-    heroImageUrl:
-      'https://images.unsplash.com/photo-1516321165247-4aa89a48be28?auto=format&fit=crop&w=1200&q=80',
-    options: [
+  support: {
+    introEyebrow: 'Customer Center',
+    title: '고객센터',
+    description: '어려움이나 궁금한 점이 있으신가요?',
+    phone: '1800-1985',
+    hours: '고객행복센터(전화): 오전 9시 ~ 오후 6시 운영\n채팅 상담 문의: 24시간 운영',
+    chatLabel: '채팅 상담',
+    chatHref: 'https://pf.kakao.com/',
+    faqTitle: '자주 묻는 질문',
+    faqCategories: ['전체', '서비스 이용', '견적/신청', '운영/현장', '결제/서류', '취소/변경'],
+    faqs: [
       {
-        title: '운영 문의',
-        description: '행사 준비 상황과 일정, 필요한 운영 범위를 먼저 상담하고 싶을 때 적합합니다.',
-        iconKey: 'message',
-        imageUrl: '',
+        category: '서비스 이용',
+        question: '마이스파트너는 어떤 서비스인가요?',
+        answer: '마이스파트너는 행사 기획, 홈페이지 제작, 참가자 등록 및 현장 운영까지 전 과정을 지원하는 통합 MICE 운영 서비스입니다.',
       },
       {
-        title: '제안서 요청',
-        description: '행사 개요를 바탕으로 운영 범위와 제안 구성을 검토받고 싶을 때 활용합니다.',
-        iconKey: 'file',
-        imageUrl: '',
+        category: '서비스 이용',
+        question: '개인도 이용할 수 있나요?',
+        answer: '네, 기업이나 기관뿐만 아니라 개인 주최자분들도 행사 규모에 맞춰 서비스를 이용하실 수 있습니다.',
       },
       {
-        title: '포트폴리오 문의',
-        description: '비슷한 유형의 운영 사례와 결과를 먼저 보고 싶을 때 연결됩니다.',
-        iconKey: 'map',
-        imageUrl: '',
-      },
-    ],
-    trustBullets: ['문의 저장 API 연동', '관리자 상태 관리 가능', '사이트 콘텐츠 직접 수정 가능'],
-    responseSteps: [
-      {
-        step: '01',
-        title: '문의 접수',
-        description: '입력한 내용은 저장 즉시 관리자 화면에서 확인할 수 있습니다.',
+        category: '서비스 이용',
+        question: '회원가입을 해야 서비스 이용이 가능한가요?',
+        answer: '홈페이지 이용은 별도 가입 없이 가능하며, 문의 및 상담 신청을 통해 맞춤형 서비스를 제공받으실 수 있습니다.',
       },
       {
-        step: '02',
-        title: '내용 검토',
-        description: '행사 일정, 목적, 요청 범위를 기준으로 필요한 지원을 검토합니다.',
+        category: '견적/신청',
+        question: '견적 확인은 어떻게 하나요?',
+        answer: '문의 페이지를 통해 행사 개요를 남겨주시면, 담당자가 확인 후 24시간 이내에 예상 견적과 안내 자료를 보내드립니다.',
       },
       {
-        step: '03',
-        title: '답변 및 제안',
-        description: '필요 시 추가 확인을 거쳐 상담 또는 제안 단계로 이어집니다.',
+        category: '운영/현장',
+        question: '현장 스태프만 별도로 요청할 수 있나요?',
+        answer: '네, 등록 데스크 운영이나 현장 안내를 위한 전문 스태프 파견 서비스만 별도로 이용하실 수 있습니다.',
+      },
+      {
+        category: '결제/서류',
+        question: '세금계산서 발행이 가능한가요?',
+        answer: '네, 모든 서비스 이용 시 정식 세금계산서 발행이 가능합니다. 결제 시 사업자등록증 사본을 전달해 주세요.',
+      },
+      {
+        category: '취소/변경',
+        question: '행사 일정이 변경되면 어떻게 되나요?',
+        answer: '일정 변경 시 최대한 조율해 드리며, 취소 시에는 진행 단계에 따른 위약금이 발생할 수 있으니 사전 협의가 필요합니다.',
       },
     ],
-    checklist: ['행사 목적', '예상 참가 인원', '필요한 운영 범위', '희망 일정 또는 마감 시점'],
-    contactInfo: [
-      { label: '대표 메일', value: 'hello@micepartner.co.kr', href: 'mailto:hello@micepartner.co.kr' },
-      { label: '대표 전화', value: '042-123-4567', href: 'tel:0421234567' },
-      { label: '운영 지역', value: '대전광역시 중심 / 전국 프로젝트 협의 가능', href: '' },
-    ],
-    submitButtonLabel: '문의 접수하기',
   },
   members: {
-    introEyebrow: 'MICE Members',
-    filterAllLabel: '전체',
-    searchPlaceholder: '얼라이언스명을 입력해주세요.',
+    introEyebrow: 'Alliance',
+    filterAllLabel: '전체 회원사',
+    searchPlaceholder: '업체명 또는 지역 검색',
     searchButtonLabel: '검색',
     totalLabel: '전체',
     currentPageLabel: '현재페이지',
+    emptyStateTitle: '검색 결과가 없습니다.',
+    emptyStateDescription: '검색어 또는 분과 조건을 다시 확인해 주세요.',
     companies: [
       {
-        name: '대전컨벤션센터',
-        category: 'MICE 시설분과',
-        secondaryCategory: '컨벤션센터',
-        address: '대전 유성구 엑스포로 107 (도룡동)',
+        name: '대전컨벤션센터(DCC)',
+        category: '컨벤션센터',
+        secondaryCategory: '전시장',
+        address: '대전 유성구 엑스포로 107',
         phone: '042-250-1100',
-        logoUrl: createTextLogoDataUrl('DCC', 520, 360, 92),
+        logoUrl: createTextLogoDataUrl('DCC', 520, 360, 58),
+        updatedAt: '2026.03.12',
       },
       {
-        name: '굿모닝레지던스 호텔 휴',
-        category: 'MICE 시설분과',
-        secondaryCategory: '호텔',
-        address: '대전 서구 둔산로73번길 21 (둔산동)',
-        phone: '042-489-4000',
-        logoUrl: createTextLogoDataUrl('HOTEL HUE', 520, 360, 52),
-      },
-      {
-        name: '호텔 오노마 대전',
-        category: 'MICE 시설분과',
-        secondaryCategory: '호텔',
-        address: '대전 유성구 엑스포로 1 (도룡동)',
-        phone: '042-259-8000',
-        logoUrl: createTextLogoDataUrl('ONOMA', 520, 360, 70),
-      },
-      {
-        name: 'ICC 호텔',
-        category: 'MICE 시설분과',
-        secondaryCategory: '호텔',
+        name: '호텔 ICC',
+        category: '호텔',
+        secondaryCategory: '연회장',
         address: '대전 유성구 엑스포로123번길 55',
         phone: '042-866-5100',
         logoUrl: createTextLogoDataUrl('ICC HOTEL', 520, 360, 58),
+        updatedAt: '2026.03.12',
       },
       {
         name: 'KT인재개발원',
         category: '교육·연수',
         secondaryCategory: '연수원',
         address: '대전 서구 갈마로 160',
-        phone: '042-620-5114',
-        logoUrl: createTextLogoDataUrl('KT HRD', 520, 360, 72),
-      },
-      {
-        name: '한남대학교',
-        category: '교육·연수',
-        secondaryCategory: '대학교',
-        address: '대전 대덕구 한남로 70',
-        phone: '042-629-7114',
-        logoUrl: createTextLogoDataUrl('HANNAM', 520, 360, 74),
-      },
-      {
-        name: '엑스포과학공원',
-        category: 'MICE 시설분과',
-        secondaryCategory: '전시·이벤트',
-        address: '대전 유성구 대덕대로 480',
-        phone: '042-250-1114',
-        logoUrl: createTextLogoDataUrl('EXPO PARK', 520, 360, 64),
-      },
-      {
-        name: '라마다호텔 대전',
-        category: 'MICE 시설분과',
-        secondaryCategory: '호텔',
-        address: '대전 유성구 계룡로 127',
-        phone: '042-540-1000',
-        logoUrl: createTextLogoDataUrl('RAMADA', 520, 360, 78),
+        phone: '042-530-5114',
+        logoUrl: createTextLogoDataUrl('KT HRD', 520, 360, 58),
+        updatedAt: '2026.03.12',
       },
     ],
   },
-  customPages: [],
   menus: {
     headerItems: [
       {
-        label: '서비스',
-        path: '/services',
-        children: [
-          { label: '통합 운영 서비스', path: '/services#service-modules' },
-          { label: '협업 프로세스', path: '/services#service-flow' },
-        ],
-      },
-      {
-        label: '포트폴리오',
-        path: '/cases',
-        children: [
-          { label: '대표 프로젝트', path: '/cases#portfolio-list' },
-          { label: '기업·기관 행사 사례', path: '/cases?category=포럼%20및%20설명회#portfolio-list' },
-          { label: '브랜드 초청 행사 사례', path: '/cases?category=기업%20초청%20행사#portfolio-list' },
-        ],
-      },
-      {
-        label: '정보센터',
-        path: '/resources',
-        children: [
-          { label: '소식', path: '/resources/notices' },
-          { label: '자료', path: '/resources/files' },
-        ],
-      },
-      {
         label: '회사소개',
         path: '/about',
+        imageUrl: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80',
         children: [
           { label: '브랜드 소개', path: '/about#about-identity' },
           { label: '강점 소개', path: '/about#about-strengths' },
@@ -618,26 +446,47 @@ export const defaultSiteContent: SitePageContent = {
         ],
       },
       {
-        label: 'MICE 회원',
+        label: '운영사례',
+        path: '/cases',
+        imageUrl: 'https://images.unsplash.com/photo-1515169067868-5387ec356754?auto=format&fit=crop&w=800&q=80',
+        children: [
+          { label: '대표 프로젝트', path: '/cases#portfolio-list' },
+          { label: '기업·기관 행사 사례', path: '/cases?category=포럼%20및%20설명회#portfolio-list' },
+          { label: '브랜드 초청 행사 사례', path: '/cases?category=기업%20초청%20행사#portfolio-list' },
+        ],
+      },
+      {
+        label: '협력업체',
         path: '/members',
+        imageUrl: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=800&q=80',
         children: [
           { label: '회원사 소개', path: '/members#member-list' },
           { label: '회원사 검색', path: '/members#member-search' },
         ],
       },
       {
-        label: '문의',
-        path: '/contact',
+        label: '정보센터',
+        path: '/resources',
+        imageUrl: 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=800&q=80',
         children: [
-          { label: '상담 안내', path: '/contact#contact-options' },
-          { label: '문의 접수', path: '/contact#contact-form' },
+          { label: '소식', path: '/resources/notices' },
+          { label: '자료', path: '/resources/files' },
+        ],
+      },
+      {
+        label: '고객센터',
+        path: '/faq',
+        imageUrl: 'https://images.unsplash.com/photo-1521791136364-798a7bc0d267?auto=format&fit=crop&w=800&q=80',
+        children: [
+          { label: '전화 및 채팅', path: '/faq#support-contact' },
+          { label: 'FAQ', path: '/faq#support-faq' },
         ],
       },
     ],
     footerQuickLinks: [
       { label: '회사소개', path: '/about' },
-      { label: 'MICE 회원', path: '/members' },
-      { label: '문의하기', path: '/contact' },
+      { label: '협력업체', path: '/members' },
+      { label: '고객센터', path: '/faq' },
     ],
   },
   footer: {

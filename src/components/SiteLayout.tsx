@@ -1,11 +1,33 @@
 import { ChevronDown, Menu, X, Facebook, Instagram, Youtube } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useSiteContent } from '../context/SiteContentContext';
 import { SiteContentSplash } from './SiteContentSplash';
 
+function toOptimizedMegaImageUrl(url: string) {
+  const raw = String(url || '').trim();
+  if (!raw) {
+    return '';
+  }
+
+  try {
+    const parsed = new URL(raw);
+    if (parsed.hostname.includes('images.unsplash.com')) {
+      parsed.searchParams.set('auto', 'format');
+      parsed.searchParams.set('fit', 'crop');
+      parsed.searchParams.set('w', '1100');
+      parsed.searchParams.set('q', '72');
+      return parsed.toString();
+    }
+    return raw;
+  } catch {
+    return raw;
+  }
+}
+
 export function SiteLayout() {
   const [isOpen, setIsOpen] = useState(false);
+  const [hoveredMenuPath, setHoveredMenuPath] = useState<string | null>(null);
   const location = useLocation();
   const { siteCopy, siteContent, ready } = useSiteContent();
 
@@ -21,14 +43,6 @@ export function SiteLayout() {
     return pathname.split('?')[0] || '/';
   };
 
-  const getMenuTarget = (path: string, children?: { path: string }[]) => {
-    if (children && children.length > 0) {
-      return children[0].path;
-    }
-
-    return path;
-  };
-
   const isNavActive = (path: string, children?: { path: string }[]) => {
     const candidates = [path, ...(children || []).map((item) => item.path)]
       .map(normalizePathname)
@@ -41,9 +55,59 @@ export function SiteLayout() {
     return candidates.some((candidate) => location.pathname === candidate || location.pathname.startsWith(`${candidate}/`));
   };
 
+  const activeMenu = menus.headerItems.find(item => item.path === hoveredMenuPath);
+  const activeMenuImageSrc = activeMenu?.imageUrl ? toOptimizedMegaImageUrl(activeMenu.imageUrl) : '';
+  const megaMenuImageUrls = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          menus.headerItems
+            .map((item) => toOptimizedMegaImageUrl(item.imageUrl || ''))
+            .filter(Boolean),
+        ),
+      ),
+    [menus.headerItems],
+  );
+
+  useEffect(() => {
+    const preloadLinks: HTMLLinkElement[] = [];
+    const preloadedImages: HTMLImageElement[] = [];
+
+    megaMenuImageUrls.forEach((url, index) => {
+      const preload = document.createElement('link');
+      preload.rel = 'preload';
+      preload.as = 'image';
+      preload.href = url;
+      if (index === 0) {
+        preload.setAttribute('fetchpriority', 'high');
+      }
+      document.head.appendChild(preload);
+      preloadLinks.push(preload);
+
+      const image = new Image();
+      image.decoding = 'async';
+      image.src = url;
+      preloadedImages.push(image);
+    });
+
+    return () => {
+      preloadLinks.forEach((link) => {
+        if (link.parentNode) {
+          link.parentNode.removeChild(link);
+        }
+      });
+      preloadedImages.forEach((image) => {
+        image.src = '';
+      });
+    };
+  }, [megaMenuImageUrls]);
+
   return (
     <div className="site-shell">
-      <header className="site-header">
+      <header 
+        className="site-header"
+        onMouseLeave={() => setHoveredMenuPath(null)}
+      >
         <div className="site-header__inner">
           <NavLink to="/" className="brand-mark" onClick={() => setIsOpen(false)}>
             <img src="/logo.png" alt="마이스파트너 로고" className="brand-mark__image" />
@@ -51,9 +115,13 @@ export function SiteLayout() {
 
           <nav className="site-nav" aria-label="주요 메뉴">
             {menus.headerItems.map((item) => (
-              <div key={item.path} className="site-nav__item">
+              <div 
+                key={item.path} 
+                className="site-nav__item"
+                onMouseEnter={() => setHoveredMenuPath(item.path)}
+              >
                 <NavLink
-                  to={getMenuTarget(item.path, item.children)}
+                  to={item.path}
                   className={isNavActive(item.path, item.children) ? 'site-nav__link is-active' : 'site-nav__link'}
                 >
                   {item.label}
@@ -63,7 +131,10 @@ export function SiteLayout() {
           </nav>
 
           <div className="site-header__actions">
-            <NavLink to="/contact" className="button button--primary">
+            <NavLink to="/login" className="button button--light site-header__login-button">
+              로그인
+            </NavLink>
+            <NavLink to="/faq" className="button button--primary">
               {footer.headerCtaLabel}
             </NavLink>
             <button
@@ -76,26 +147,45 @@ export function SiteLayout() {
               {isOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
           </div>
+        </div>
 
-          {/* 메가 메뉴 패널: site-header__inner 호버 시 노출 (CSS에서 제어) */}
-          <div className="mega-menu">
-            <div className="mega-menu__inner">
-              {menus.headerItems.map((item) => (
-                <div key={item.path} className="mega-menu__column">
-                  <div className="mega-menu__title">{item.label}</div>
-                  <div className="mega-menu__list">
-                    {item.children?.map((child) => (
-                      <Link key={child.path} to={child.path} className="mega-menu__link">
-                        {child.label}
-                      </Link>
-                    ))}
+        {/* 메가 메뉴 패널 */}
+        <div className={`mega-menu ${hoveredMenuPath ? 'is-visible' : ''}`}>
+          <div className="mega-menu__inner">
+            {activeMenu && (
+              <div className="mega-menu__split">
+                <div className="mega-menu__nav-side">
+                  <div className="mega-menu__column">
+                    <div className="mega-menu__title">{activeMenu.label}</div>
+                    <div className="mega-menu__list">
+                      {activeMenu.children?.map((child) => (
+                        <Link key={child.path} to={child.path} className="mega-menu__link" onClick={() => setHoveredMenuPath(null)}>
+                          {child.label}
+                        </Link>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
+                <div className="mega-menu__image-side">
+                  <div className="mega-menu__image-container">
+                    {activeMenuImageSrc && (
+                      <img
+                        src={activeMenuImageSrc}
+                        alt={activeMenu.label}
+                        loading="eager"
+                        decoding="async"
+                      />
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </header>
+
+      {/* 메가 메뉴 활성 시 배경 어둡게 & 흐리게 처리하는 오버레이 */}
+      <div className={`site-header-overlay ${hoveredMenuPath ? 'is-visible' : ''}`} />
 
       {isOpen ? (
         <div className="mobile-nav" aria-label="모바일 메뉴">
@@ -103,7 +193,7 @@ export function SiteLayout() {
             {menus.headerItems.map((item) => (
               <div key={item.path} className="mobile-nav__group">
                 <NavLink
-                  to={getMenuTarget(item.path, item.children)}
+                  to={item.path}
                   className={isNavActive(item.path, item.children) ? 'mobile-nav__link is-active' : 'mobile-nav__link'}
                   onClick={() => setIsOpen(false)}
                 >
@@ -120,7 +210,10 @@ export function SiteLayout() {
                 ) : null}
               </div>
             ))}
-            <NavLink to="/contact" className="header-cta mobile-nav__cta" onClick={() => setIsOpen(false)}>
+            <NavLink to="/login" className="button button--light mobile-nav__cta" onClick={() => setIsOpen(false)}>
+              로그인
+            </NavLink>
+            <NavLink to="/faq" className="header-cta mobile-nav__cta" onClick={() => setIsOpen(false)}>
               {footer.headerCtaLabel}
             </NavLink>
           </div>
@@ -132,50 +225,55 @@ export function SiteLayout() {
       </main>
 
       <footer className="site-footer">
-        <div className="site-footer__grid">
-          <div className="footer-col">
-            <div className="footer-links" style={{ marginBottom: '20px' }}>
-              {menus.footerQuickLinks.map((item, index) => (
-                <Link key={`${item.label}-${item.path}`} to={item.path} style={index === menus.footerQuickLinks.length - 1 ? { fontWeight: 700 } : undefined}>
-                  {item.label}
-                </Link>
-              ))}
+        <div className="site-footer__inner">
+          <div className="site-footer__top">
+            <div className="footer-brand-side">
+              <img src="/logo.png" alt="Micepartner Logo" className="footer-logo--dark" />
             </div>
-            <div className="footer-company-details">
-              <div>
-                <p>{siteCopy.footer.copy}</p>
-                {footer.legalLines.map((line) => (
-                  <p key={line}>{line}</p>
+            <nav className="footer-nav">
+              {menus.headerItems.map((item) => (
+                <div key={item.path} className="footer-nav__col">
+                  <h4>{item.label}</h4>
+                  <ul>
+                    {item.children?.map((child) => (
+                      <li key={child.path}>
+                        <Link to={child.path}>{child.label}</Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </nav>
+          </div>
+
+          <div className="site-footer__middle">
+            <div className="footer-socials">
+              <a href="#" aria-label="Facebook"><Facebook size={20} /></a>
+              <a href="#" aria-label="Instagram"><Instagram size={20} /></a>
+              <a href="#" aria-label="Youtube"><Youtube size={20} /></a>
+            </div>
+          </div>
+
+          <div className="site-footer__bottom">
+            <div className="footer-info">
+              <div className="footer-legal">
+                {footer.legalLines.map((line, idx) => (
+                  <span key={idx}>{line}</span>
                 ))}
               </div>
-            </div>
-          </div>
-
-          <div className="footer-col">
-            <h4>{footer.customerServiceTitle}</h4>
-            <div className="footer-contact-info">
-              <p>{footer.customerServicePhone}</p>
-              <span>{footer.customerServiceHours}</span>
-            </div>
-          </div>
-
-          <div className="footer-col">
-            <h4>{footer.bankSectionTitle}</h4>
-            <div className="footer-bank-info">
-              <div className="footer-bank-details">
-                <strong>{footer.bankName}</strong>
-                <span>{footer.bankAccountNumber}</span>
-                <span>{footer.bankAccountHolder}</span>
+              <div className="footer-copyright">
+                <strong>{footer.copyright}</strong>
+                <div className="footer-policy-links">
+                  <a href="#">이용약관</a>
+                  <a href="#">개인정보처리방침</a>
+                </div>
               </div>
             </div>
-          </div>
-
-          <div className="footer-bottom">
-            <p>{footer.copyright}</p>
-            <div className="footer-links">
-              <a href="#" aria-label="Facebook"><Facebook size={16} /></a>
-              <a href="#" aria-label="Instagram"><Instagram size={16} /></a>
-              <a href="#" aria-label="Youtube"><Youtube size={16} /></a>
+            <div className="footer-family-sites">
+              <select className="family-site-select">
+                <option value="">관련 사이트</option>
+                <option value="https://www.micepartner.co.kr">마이스파트너</option>
+              </select>
             </div>
           </div>
         </div>

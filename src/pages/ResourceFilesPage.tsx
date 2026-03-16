@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BoardIndexSection } from '../components/BoardIndexSection';
-import { PageHeaderBlock, PublicPageTemplate } from '../components/PublicPageTemplate';
+import { PageHeaderBlock } from '../components/PublicPageTemplate';
 import { PageMeta } from '../components/PageMeta';
 import { useSiteContent } from '../context/SiteContentContext';
 
@@ -30,16 +30,15 @@ export function ResourceFilesPage() {
     });
   }, [activeCategory, content.items]);
 
-  const blocks = {
-    header: (
+  return (
+    <>
+      <PageMeta title={copy.downloadsTitle} description={copy.downloadsDescription} />
       <PageHeaderBlock
         title={copy.downloadsTitle}
         description={copy.downloadsDescription}
-        action={<Link to="/resources/notices" className="resource-news-page__jump">소식 보기</Link>}
+        align="left"
       />
-    ),
-    archive: (
-      <BoardIndexSection 
+      <BoardIndexSection
         id="resource-downloads"
         toolbar={
           <>
@@ -75,13 +74,6 @@ export function ResourceFilesPage() {
           ))}
         </div>
       </BoardIndexSection>
-    ),
-  };
-
-  return (
-    <>
-      <PageMeta title={copy.downloadsTitle} description={copy.downloadsDescription} />
-      <PublicPageTemplate page="resourcesFiles" blocks={blocks} />
     </>
   );
 }

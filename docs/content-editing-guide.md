@@ -1,92 +1,65 @@
 # Content Editing Guide
 
-마이스파트너 회사소개 홈페이지에서 실제 회사 정보를 넣을 때 수정해야 하는 파일 위치를 정리한 문서입니다.
+마이스파트너 사이트는 이제 템플릿 시스템 없이 `페이지별 개별 편집` 구조로 운영합니다.
 
-## 1. 상단 메뉴와 공통 소개
+## 운영 원칙
 
-- 메뉴명: `src/content/site.ts`
-  - `navItems`
-- 푸터 하단 안내 문구 및 placeholder 노출: `src/components/SiteLayout.tsx`
+- 실제 운영 중 문구/이미지 수정은 관리자 화면에서 합니다.
+- 코드에서 직접 수정하는 경우는 기본값 정리나 새 페이지 구현이 필요할 때만입니다.
 
-## 2. 메인 페이지
+## 관리자에서 수정하는 항목
 
-- 메인 핵심 지표: `src/content/site.ts`
-  - `heroStats`
-- 메인 강점 카드: `src/content/site.ts`
-  - `valueCards`
-- 메인 서비스 미리보기: `src/content/site.ts`
-  - `serviceCards`
-- 메인 프로세스: `src/content/site.ts`
-  - `processSteps`
+- 메인 홈
+- 사업안내
+- 운영사례
+- 운영사례 상세
+- 정보센터 소식
+- 정보센터 소식 상세
+- 정보센터 자료
+- 정보센터 자료 상세
+- 회사소개
+- 협력업체
+- 상담신청
+- 고객센터
+- 메뉴 관리
+- 푸터
 
-## 3. 서비스 페이지
+## 코드 기준 기본값 위치
 
-- 서비스 카드 내용: `src/content/site.ts`
-  - `serviceCards`
-- 서비스 진행 흐름: `src/content/site.ts`
-  - `processSteps`
+- 기본 카피: `src/content/defaultSiteCopy.ts`
+- 기본 콘텐츠: `src/content/defaultSiteContent.ts`
+- 관리자 섹션 메타: `src/content/defaultSiteEditorConfig.ts`
+- 통합 기본 데이터: `src/content/defaultSiteData.ts`
 
-## 4. 포트폴리오 페이지
+Firestore 데이터가 없거나 일부 값이 비어 있으면 위 기본값이 사용됩니다.
 
-- 포트폴리오 목록/상세 내용: `src/content/portfolio.ts`
-  - `portfolioEntries`
-- 포트폴리오 카테고리: `src/content/portfolio.ts`
-  - `portfolioCategories`
+## 페이지별 실제 구현 파일
 
-포트폴리오 한 건을 수정할 때 주로 바꾸는 항목:
+- 메인 홈: `src/pages/HomePage.tsx`
+- 사업안내: `src/pages/ServicesPage.tsx`
+- 운영사례: `src/pages/CaseStudiesPage.tsx`
+- 운영사례 상세: `src/pages/PortfolioDetailPage.tsx`
+- 정보센터 소식: `src/pages/ResourcesPage.tsx`
+- 정보센터 소식 상세: `src/pages/NoticeDetailPage.tsx`
+- 정보센터 자료: `src/pages/ResourceFilesPage.tsx`
+- 정보센터 자료 상세: `src/pages/ResourceDetailPage.tsx`
+- 회사소개: `src/pages/AboutPage.tsx`
+- 협력업체: `src/pages/MembersPage.tsx`
+- 고객센터: `src/pages/FAQPage.tsx`
+- 상담신청: `src/pages/ContactPage.tsx`
 
-- `title`
-- `description`
-- `outcome`
-- `client`
-- `period`
-- `scope`
-- `summary`
-- `challenge`
-- `approach`
-- `result`
-- `galleryPlaceholders`
+## 공통 UI 파일
 
-## 5. 자료실 / 공지
-
-- 공지 목록/상세: `src/content/resources.ts`
-  - `noticeItems`
-- 자료실 목록/상세: `src/content/resources.ts`
-  - `resourceItems`
-- 자료실 카테고리 소개: `src/content/resources.ts`
-  - `resourceCategories`
-
-## 6. 회사소개 페이지
-
-- 회사 소개 문장/강점/문의 포인트: `src/content/site.ts`
-  - `aboutPoints`
-  - `partnerHighlights`
-  - `contactPoints`
-
-## 7. 직접 교체해야 하는 placeholder
-
-- 공통 placeholder 목록: `src/content/site.ts`
-  - `ownerTodoPlaceholders`
-
-현재 이 항목들은 실제 운영 전에 직접 바꾸는 용도로 남겨져 있습니다.
-
-## 8. 문의 기능
-
-- 프론트 문의 폼: `src/pages/ContactPage.tsx`
-- 문의 API 호출: `src/lib/api.ts`
-- 문의 저장 서버: `server/index.js`
-- 문의 DB: `server/db.js`
-
-## 9. 디자인 구조 참고
-
-- Gemini 디자인 브리프: `docs/gemini-design-brief.md`
+- 공통 레이아웃: `src/components/SiteLayout.tsx`
+- 공통 페이지 블록: `src/components/PublicPageTemplate.tsx`
 - 전역 스타일: `src/index.css`
 
-## 10. 가장 자주 손대는 파일
+## 데이터 저장/정규화
 
-실제 운영 준비 시 보통 아래 4개 파일을 가장 많이 수정하게 됩니다.
+- 사이트 데이터 로드/저장: `src/lib/api.ts`
+- 사이트 데이터 컨텍스트: `src/context/SiteContentContext.tsx`
 
-- `src/content/site.ts`
-- `src/content/portfolio.ts`
-- `src/content/resources.ts`
-- `src/components/SiteLayout.tsx`
+## 참고
+
+- 템플릿 시스템, 커스텀 페이지 자동 생성, 정적 seed 파일(`src/content/site.ts`, `src/content/resources.ts` 등)은 제거됐습니다.
+- 새 페이지가 필요하면 기존 페이지를 복제하는 방식이 아니라 해당 페이지를 별도로 구현하고 관리자 편집 대상에 추가해야 합니다.

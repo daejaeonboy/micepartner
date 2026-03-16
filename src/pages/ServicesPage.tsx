@@ -1,5 +1,4 @@
 import { PageMeta } from '../components/PageMeta';
-import { PublicPageTemplate } from '../components/PublicPageTemplate';
 import { useSiteContent } from '../context/SiteContentContext';
 
 export function ServicesPage() {
@@ -7,8 +6,9 @@ export function ServicesPage() {
   const copy = siteCopy.services;
   const content = siteContent.services;
 
-  const blocks = {
-    intro: (
+  return (
+    <>
+      <PageMeta title="서비스" description={copy.introDescription} />
       <section className="service-plain-hero">
         <div className="service-plain-hero__inner">
           <p className="section-eyebrow">{content.introEyebrow}</p>
@@ -16,15 +16,15 @@ export function ServicesPage() {
           <p>{copy.introDescription}</p>
         </div>
       </section>
-    ),
-    visual: content.heroImageUrl ? (
-      <section className="service-plain-section service-plain-section--visual">
-        <div className="service-plain-image">
-          <img src={content.heroImageUrl} alt="서비스 페이지 대표 이미지" />
-        </div>
-      </section>
-    ) : null,
-    modules: (
+
+      {content.heroImageUrl ? (
+        <section className="service-plain-section service-plain-section--visual">
+          <div className="service-plain-image">
+            <img src={content.heroImageUrl} alt="서비스 페이지 대표 이미지" />
+          </div>
+        </section>
+      ) : null}
+
       <section id="service-modules" className="service-plain-section">
         <div className="service-plain-heading">
           <p className="section-eyebrow">{content.modulesEyebrow}</p>
@@ -48,8 +48,7 @@ export function ServicesPage() {
           ))}
         </div>
       </section>
-    ),
-    flow: (
+
       <section id="service-flow" className="service-plain-section service-plain-section--last">
         <div className="service-plain-heading">
           <p className="section-eyebrow">{content.flowEyebrow}</p>
@@ -67,13 +66,6 @@ export function ServicesPage() {
           ))}
         </div>
       </section>
-    ),
-  };
-
-  return (
-    <>
-      <PageMeta title="서비스" description={copy.introDescription} />
-      <PublicPageTemplate page="services" blocks={blocks} />
     </>
   );
 }

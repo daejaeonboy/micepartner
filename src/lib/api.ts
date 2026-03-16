@@ -21,18 +21,10 @@ import {
 } from 'firebase/firestore';
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { defaultSiteData } from '../content/defaultSiteData';
-import {
-  buildSitePageLayoutsFromTemplates,
-  isTemplateCompatibleWithPage,
-  normalizeTemplateLayouts,
-  templateCatalogMap,
-} from '../content/publicPageLayouts';
 import type { AdminAuthResponse, AdminProvider, AdminUser } from '../types/admin';
 import type { Inquiry, InquiryInput, InquiryStatus } from '../types/inquiry';
-import type { SitePageTemplates } from '../types/pageTemplate';
 import type { SiteData } from '../types/siteData';
 import { getFirebaseAuth, getFirebaseDb, getFirebaseStorage } from './firebase';
-import { syncCustomPages } from './customPages';
 
 type AdminProfileDoc = {
   name?: string;
@@ -46,10 +38,88 @@ const COLLECTIONS = {
   admins: 'admins',
   inquiries: 'inquiries',
   siteData: 'siteData',
-} as const;
+};
 
 const SITE_DATA_DOC_ID = 'current';
 const VALID_STATUSES = new Set<InquiryStatus>(['new', 'in_progress', 'completed']);
+const LEGACY_ABOUT_COPY = {
+  introTitle: '회사소개 페이지는 회사가 누구인지보다 어떤 방식으로 일하는지까지 보여줘야 합니다.',
+  introDescription:
+    '이 페이지는 마이스파트너의 방향, 일하는 방식, 강점을 정리하는 구조로 두었고, 실제 회사 문구는 이후 직접 교체할 수 있게 placeholder로 남겨두었습니다.',
+  identityTitle: '회사소개에서는 핵심 메시지와 일하는 기준이 먼저 보여야 합니다.',
+  identityDescription:
+    '실제 소개 문구는 이후 바꾸더라도, 어떤 성격의 회사인지와 어떤 서비스를 중심으로 일하는지는 먼저 구조로 잡아두는 편이 좋습니다.',
+  identityCardTitle: '회사 소개 문장 Placeholder',
+  ownerCardTitle: '직접 교체할 항목',
+  strengthTitle: '회사소개에는 강점과 협업 방식이 같이 들어가야 신뢰가 생깁니다.',
+  strengthDescription: '연혁만 나열하는 방식보다, 고객이 왜 이 회사를 선택해야 하는지 바로 이해할 수 있게 구성하는 편이 더 좋습니다.',
+  processTitle: '문의부터 운영까지 어떤 흐름으로 일하는지 정리해 두면 회사 소개가 훨씬 선명해집니다.',
+  processDescription: '실제 회사소개 페이지에서도 협업 절차가 보이면 고객이 문의 전부터 기대치를 맞추기 쉬워집니다.',
+};
+const LEGACY_ABOUT_CONTENT = {
+  introEyebrow: 'About',
+  identityEyebrow: 'Who We Are',
+  strengthEyebrow: 'Why Mice Partner',
+  processEyebrow: 'Working Process',
+  messageTitle: '마이스파트너는 현장에서 바로 작동하는 운영 구조를 만드는 팀입니다.',
+  messageBody:
+    '우리는 행사 소개 문구를 예쁘게 정리하는 것보다 실제 운영 흐름이 끊기지 않게 만드는 일을 더 중요하게 생각합니다.\n\n고객이 처음 문의하는 순간부터 행사 종료 후 결과를 정리하는 시점까지, 커뮤니케이션과 현장 운영이 같은 기준으로 움직이는 구조를 만듭니다.',
+  identityPoints: [
+    '행사 목적과 일정에 맞는 운영 범위를 먼저 정리합니다.',
+    '현장 등록, 체크인, 협력사 커뮤니케이션처럼 실제 실행 구간을 기준으로 제안합니다.',
+    '행사 종료 후 결과 정리와 다음 운영 개선까지 연결될 수 있게 기록을 남깁니다.',
+  ],
+  highlights: [
+    {
+      title: '지역 기반 실행력',
+      description: '대전과 충청권 행사 운영 환경을 이해한 상태에서 빠르게 협력 체계를 만들 수 있습니다.',
+      iconKey: 'map',
+      imageUrl: '',
+    },
+    {
+      title: '운영 커뮤니케이션',
+      description: '주최기관, 협력사, 스태프가 같은 기준으로 움직이도록 정보 구조를 정리합니다.',
+      iconKey: 'message',
+      imageUrl: '',
+    },
+    {
+      title: '웹과 현장의 연결',
+      description: '웹사이트 문구, 참가자 안내, 현장 운영이 끊기지 않도록 한 흐름으로 설계합니다.',
+      iconKey: 'globe',
+      imageUrl: '',
+    },
+  ],
+  processSteps: [
+    {
+      step: '01',
+      title: '문의 수집',
+      description: '고객의 요청 범위를 빠르게 파악해 필요한 자료와 다음 액션을 정리합니다.',
+    },
+    {
+      step: '02',
+      title: '운영 설계',
+      description: '행사 운영 범위, 안내 구조, 협업 포인트를 실제 실행 관점에서 정리합니다.',
+    },
+    {
+      step: '03',
+      title: '실행과 회고',
+      description: '행사 운영 후 결과와 개선 포인트를 남겨 반복 가능한 운영 체계를 만듭니다.',
+    },
+  ],
+} as const;
+
+function normalizeMenuPath(path: string) {
+  const [pathname] = String(path || '').split('#');
+  return pathname.split('?')[0] || '/';
+}
+
+function normalizeMenuLabel(label: string) {
+  return String(label || '').trim().replace(/\s+/g, '');
+}
+
+function hasOwnKey(target: unknown, key: string) {
+  return Boolean(target && typeof target === 'object' && Object.prototype.hasOwnProperty.call(target, key));
+}
 
 function nowIso() {
   return new Date().toISOString();
@@ -59,9 +129,8 @@ function normalizeEmail(email?: string | null) {
   return String(email || '').trim().toLowerCase();
 }
 
-function normalizeStoredPath(path: string) {
-  const [pathname] = String(path || '').split('#');
-  return pathname.split('?')[0] || '/';
+function matchesLegacyValue(value: unknown, legacy: unknown) {
+  return JSON.stringify(value) === JSON.stringify(legacy);
 }
 
 function inferName(user: User, fallback?: string) {
@@ -380,52 +449,215 @@ export function normalizeSiteData(data: Record<string, unknown> | null | undefin
     return (value === undefined ? defaults : value) as T;
   };
 
-  const finalizeSiteData = (normalized: SiteData): SiteData => {
-    const headerItems = normalized.content.menus.headerItems.map((item) => {
-      const hasLegacyResourceChildren = item.children.some((child) => String(child.path || '').startsWith('/resources#'));
-      const isLegacyResourceMenu = item.path === '/resources' && (hasLegacyResourceChildren || item.label === '자료실');
+  const finalizeSiteData = (normalized: SiteData, rawSiteData?: Record<string, unknown> | null): SiteData => {
+    const removedPagePaths = new Set(['/services']);
+    const isRemovedPagePath = (path: string) => removedPagePaths.has(normalizeMenuPath(path));
+    const defaultHeaderMap = new Map(
+      defaultSiteData.content.menus.headerItems.map((item) => [normalizeMenuPath(item.path), item]),
+    );
+    const defaultHeaderLabelMap = new Map(
+      defaultSiteData.content.menus.headerItems.map((item) => [normalizeMenuLabel(item.label), item]),
+    );
+    defaultHeaderLabelMap.set('자료실', defaultSiteData.content.menus.headerItems.find((item) => normalizeMenuPath(item.path) === '/resources')!);
 
-      if (!isLegacyResourceMenu) {
-        return item;
-      }
+    const headerItems = normalized.content.menus.headerItems
+      .map((item) => {
+        const normalizedPath = normalizeMenuPath(item.path);
+        const normalizedLabel = normalizeMenuLabel(item.label);
+        const hasLegacyResourceChildren = item.children.some((child) => String(child.path || '').startsWith('/resources#'));
+        const isLegacyResourceMenu = normalizedPath === '/resources' && (hasLegacyResourceChildren || item.label === '자료실');
+        const canonicalItem =
+          defaultHeaderLabelMap.get(normalizedLabel) ||
+          defaultHeaderMap.get(normalizedPath) ||
+          (isLegacyResourceMenu ? defaultHeaderMap.get('/resources') : undefined);
+
+        if (!canonicalItem) {
+          return item;
+        }
+
+        return {
+          ...item,
+          label: String(item.label || canonicalItem.label),
+          path: canonicalItem.path,
+          children: canonicalItem.children.map((child, index) => ({
+            label: String(item.children?.[index]?.label || child.label),
+            path: child.path,
+          })),
+        };
+      })
+      .filter((item) => !isRemovedPagePath(item.path))
+      .map((item) => ({
+        ...item,
+        children: item.children.filter((child) => !isRemovedPagePath(child.path)),
+      }));
+    const footerQuickLinks = normalized.content.menus.footerQuickLinks.filter((item) => !isRemovedPagePath(item.path));
+    const homePrimaryCtaHref = isRemovedPagePath(normalized.content.home.primaryCtaHref)
+      ? '/cases'
+      : normalized.content.home.primaryCtaHref;
+    const defaultCaseEntryMap = new Map(
+      defaultSiteData.content.cases.entries.map((item) => [String(item.slug || '').trim(), item]),
+    );
+    const normalizedCaseEntries = normalized.content.cases.entries.map((item) => {
+      const fallback = defaultCaseEntryMap.get(String(item.slug || '').trim());
 
       return {
+        ...fallback,
         ...item,
-        label: '정보센터',
-        path: '/resources',
-        children: [
-          { label: '소식', path: '/resources/notices' },
-          { label: '자료', path: '/resources/files' },
-        ],
+        updatedAt: String((item as { updatedAt?: string }).updatedAt || fallback?.updatedAt || '').trim(),
       };
     });
-
-    const templates = Object.entries(normalized.templates || {}).reduce<SitePageTemplates>((accumulator, [rawPath, rawTemplateId]) => {
-      const path = normalizeStoredPath(rawPath);
-      const templateId = String(rawTemplateId || '').trim();
-
-      if (!path || !templateId || !(templateId in templateCatalogMap) || !isTemplateCompatibleWithPage(path, templateId)) {
-        return accumulator;
-      }
-
-      accumulator[path] = templateId as keyof typeof templateCatalogMap;
-      return accumulator;
-    }, {});
-
-    const mergedTemplates = {
-      ...defaultSiteData.templates,
-      ...templates,
-    };
-    const mergedTemplateLayouts = normalizeTemplateLayouts(
-      normalized.templateLayouts as Partial<typeof defaultSiteData.templateLayouts> | undefined,
+    const defaultMemberCompanyMap = new Map(
+      defaultSiteData.content.members.companies.map((item) => [String(item.name || '').trim(), item]),
     );
+    const normalizedMemberCompanies = normalized.content.members.companies.map((item) => {
+      const fallback = defaultMemberCompanyMap.get(String(item.name || '').trim());
 
-    const normalizedContent = syncCustomPages(
+      return {
+        ...fallback,
+        ...item,
+        updatedAt: String((item as { updatedAt?: string }).updatedAt || fallback?.updatedAt || '').trim(),
+      };
+    });
+    const rawContent = rawSiteData?.content;
+    const rawHome =
+      rawContent && typeof rawContent === 'object'
+        ? ((rawContent as Record<string, unknown>).home as Record<string, unknown> | undefined)
+        : undefined;
+    const hasPersistedHeroSlides = hasOwnKey(rawHome, 'heroSlides');
+    const fallbackHeroSlides = [
       {
+        title: String(normalized.copy.home.heroTitle || '').trim(),
+        description: String(normalized.copy.home.heroDescription || '').trim(),
+        imageUrl: String(normalized.content.home.heroImageUrl || '').trim(),
+      },
+    ].filter((item) => item.title || item.description || item.imageUrl);
+    const normalizedHeroSlides = Array.isArray(normalized.content.home.heroSlides)
+      ? normalized.content.home.heroSlides
+          .map((item) => ({
+            title: String(item?.title || '').trim(),
+            description: String(item?.description || '').trim(),
+            imageUrl: String(item?.imageUrl || '').trim(),
+          }))
+          .filter((item) => item.title || item.description || item.imageUrl)
+      : [];
+    const heroSlides =
+      hasPersistedHeroSlides && normalizedHeroSlides.length > 0
+        ? normalizedHeroSlides
+        : fallbackHeroSlides.length > 0
+          ? fallbackHeroSlides
+          : normalizedHeroSlides.length > 0
+            ? normalizedHeroSlides
+            : defaultSiteData.content.home.heroSlides;
+    const primaryHeroImageUrl = String(heroSlides[0]?.imageUrl || normalized.content.home.heroImageUrl || '').trim();
+
+    const aboutCopy = {
+      ...normalized.copy.about,
+      introTitle: normalized.copy.about.introTitle === LEGACY_ABOUT_COPY.introTitle ? defaultSiteData.copy.about.introTitle : normalized.copy.about.introTitle,
+      introDescription:
+        normalized.copy.about.introDescription === LEGACY_ABOUT_COPY.introDescription
+          ? defaultSiteData.copy.about.introDescription
+          : normalized.copy.about.introDescription,
+      identityTitle:
+        normalized.copy.about.identityTitle === LEGACY_ABOUT_COPY.identityTitle
+          ? defaultSiteData.copy.about.identityTitle
+          : normalized.copy.about.identityTitle,
+      identityDescription:
+        normalized.copy.about.identityDescription === LEGACY_ABOUT_COPY.identityDescription
+          ? defaultSiteData.copy.about.identityDescription
+          : normalized.copy.about.identityDescription,
+      identityCardTitle:
+        normalized.copy.about.identityCardTitle === LEGACY_ABOUT_COPY.identityCardTitle
+          ? defaultSiteData.copy.about.identityCardTitle
+          : normalized.copy.about.identityCardTitle,
+      ownerCardTitle:
+        normalized.copy.about.ownerCardTitle === LEGACY_ABOUT_COPY.ownerCardTitle
+          ? defaultSiteData.copy.about.ownerCardTitle
+          : normalized.copy.about.ownerCardTitle,
+      strengthTitle:
+        normalized.copy.about.strengthTitle === LEGACY_ABOUT_COPY.strengthTitle
+          ? defaultSiteData.copy.about.strengthTitle
+          : normalized.copy.about.strengthTitle,
+      strengthDescription:
+        normalized.copy.about.strengthDescription === LEGACY_ABOUT_COPY.strengthDescription
+          ? defaultSiteData.copy.about.strengthDescription
+          : normalized.copy.about.strengthDescription,
+      processTitle:
+        normalized.copy.about.processTitle === LEGACY_ABOUT_COPY.processTitle
+          ? defaultSiteData.copy.about.processTitle
+          : normalized.copy.about.processTitle,
+      processDescription:
+        normalized.copy.about.processDescription === LEGACY_ABOUT_COPY.processDescription
+          ? defaultSiteData.copy.about.processDescription
+          : normalized.copy.about.processDescription,
+    };
+
+    const aboutContent = {
+      ...normalized.content.about,
+      introEyebrow:
+        normalized.content.about.introEyebrow === LEGACY_ABOUT_CONTENT.introEyebrow
+          ? defaultSiteData.content.about.introEyebrow
+          : normalized.content.about.introEyebrow,
+      identityEyebrow:
+        normalized.content.about.identityEyebrow === LEGACY_ABOUT_CONTENT.identityEyebrow
+          ? defaultSiteData.content.about.identityEyebrow
+          : normalized.content.about.identityEyebrow,
+      strengthEyebrow:
+        normalized.content.about.strengthEyebrow === LEGACY_ABOUT_CONTENT.strengthEyebrow
+          ? defaultSiteData.content.about.strengthEyebrow
+          : normalized.content.about.strengthEyebrow,
+      processEyebrow:
+        normalized.content.about.processEyebrow === LEGACY_ABOUT_CONTENT.processEyebrow
+          ? defaultSiteData.content.about.processEyebrow
+          : normalized.content.about.processEyebrow,
+      messageTitle:
+        normalized.content.about.messageTitle === LEGACY_ABOUT_CONTENT.messageTitle
+          ? defaultSiteData.content.about.messageTitle
+          : normalized.content.about.messageTitle,
+      messageBody:
+        normalized.content.about.messageBody === LEGACY_ABOUT_CONTENT.messageBody
+          ? defaultSiteData.content.about.messageBody
+          : normalized.content.about.messageBody,
+      identityPoints:
+        matchesLegacyValue(normalized.content.about.identityPoints, LEGACY_ABOUT_CONTENT.identityPoints)
+          ? defaultSiteData.content.about.identityPoints
+          : normalized.content.about.identityPoints,
+      highlights:
+        matchesLegacyValue(normalized.content.about.highlights, LEGACY_ABOUT_CONTENT.highlights)
+          ? defaultSiteData.content.about.highlights
+          : normalized.content.about.highlights,
+      processSteps:
+        matchesLegacyValue(normalized.content.about.processSteps, LEGACY_ABOUT_CONTENT.processSteps)
+          ? defaultSiteData.content.about.processSteps
+          : normalized.content.about.processSteps,
+    };
+
+    return {
+      ...normalized,
+      copy: {
+        ...normalized.copy,
+        about: aboutCopy,
+      },
+      content: {
         ...normalized.content,
+        home: {
+          ...normalized.content.home,
+          heroImageUrl: primaryHeroImageUrl,
+          heroSlides,
+          primaryCtaHref: homePrimaryCtaHref,
+        },
+        cases: {
+          ...normalized.content.cases,
+          entries: normalizedCaseEntries,
+        },
+        members: {
+          ...normalized.content.members,
+          companies: normalizedMemberCompanies,
+        },
+        about: aboutContent,
         menus: {
           ...normalized.content.menus,
           headerItems,
+          footerQuickLinks,
         },
         resources: {
           ...normalized.content.resources,
@@ -435,18 +667,6 @@ export function normalizeSiteData(data: Record<string, unknown> | null | undefin
           })),
         },
       },
-      mergedTemplates,
-      mergedTemplateLayouts,
-    );
-
-    return {
-      ...normalized,
-      layouts: buildSitePageLayoutsFromTemplates(mergedTemplates, mergedTemplateLayouts),
-      templates: {
-        ...mergedTemplates,
-      },
-      templateLayouts: mergedTemplateLayouts,
-      content: normalizedContent,
     };
   };
 
@@ -455,11 +675,11 @@ export function normalizeSiteData(data: Record<string, unknown> | null | undefin
   }
 
   if ('copy' in data && 'content' in data) {
-    return finalizeSiteData(mergeWithDefaults(defaultSiteData, data));
+    return finalizeSiteData(mergeWithDefaults(defaultSiteData, data), data);
   }
 
   if ('item' in data && data.item && typeof data.item === 'object') {
-    return finalizeSiteData(mergeWithDefaults(defaultSiteData, data.item));
+    return finalizeSiteData(mergeWithDefaults(defaultSiteData, data.item), data.item as Record<string, unknown>);
   }
 
   return defaultSiteData;

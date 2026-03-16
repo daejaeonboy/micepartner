@@ -12,6 +12,7 @@ export const defaultSiteEditorConfig: SiteEditorConfig = {
     resourceDetail: {},
     about: {},
     members: {},
+    support: {},
     contact: {},
     footer: {},
     menus: {},

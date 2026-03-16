@@ -1,16 +1,7 @@
-import { Fragment, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { motion } from 'motion/react';
-import { resolveTemplateIdForPage, resolveTemplateSectionsForPage } from '../content/publicPageLayouts';
-import { useSiteContent } from '../context/SiteContentContext';
 import { fadeUp } from '../lib/motion';
-import type { PublicPageLayoutKey } from '../types/pageLayout';
-import { PageIntro } from './PageIntro';
 import { SectionHeading } from './SectionHeading';
-
-type PublicPageTemplateProps = {
-  page: PublicPageLayoutKey;
-  blocks: Record<string, ReactNode>;
-};
 
 type PageVisualBlockProps = {
   imageUrl?: string;
@@ -32,6 +23,7 @@ type PageHeaderBlockProps = {
   actionLabel?: string;
   actionTo?: string;
   action?: ReactNode;
+  align?: 'center' | 'left';
 };
 
 type PageOwnerNoteBlockProps = {
@@ -45,24 +37,6 @@ type PageBannerIntroBlockProps = {
   description: string;
   eyebrow?: string;
 };
-
-export function PublicPageTemplate({ page, blocks }: PublicPageTemplateProps) {
-  const { siteData } = useSiteContent();
-  const templateId = resolveTemplateIdForPage(page, siteData.templates);
-  const resolvedSections = resolveTemplateSectionsForPage(page, templateId, siteData.templateLayouts);
-
-  return (
-    <>
-      {resolvedSections.filter((section) => section.visible).map((section) => (
-        <Fragment key={section.id}>{blocks[section.id] ?? null}</Fragment>
-      ))}
-    </>
-  );
-}
-
-export function PageIntroBlock({ eyebrow, title, description }: { eyebrow: string; title: string; description: string }) {
-  return <PageIntro eyebrow={eyebrow} title={title} description={description} />;
-}
 
 export function PageBannerIntroBlock({ title, description, eyebrow }: PageBannerIntroBlockProps) {
   return (
@@ -117,9 +91,9 @@ export function PageSectionBlock({
   );
 }
 
-export function PageHeaderBlock({ title, description, actionLabel, actionTo, action }: PageHeaderBlockProps) {
+export function PageHeaderBlock({ title, description, actionLabel, actionTo, action, align = 'center' }: PageHeaderBlockProps) {
   return (
-    <header className="board-container board-header" style={{ paddingBottom: 0 }}>
+    <header className={`board-container board-header ${align === 'left' ? 'is-left' : ''}`} style={{ paddingBottom: 0 }}>
       <h1>{title}</h1>
       <p>{description}</p>
       {action ? action : actionLabel && actionTo ? <a href={actionTo} className="resource-news-page__jump">{actionLabel}</a> : null}

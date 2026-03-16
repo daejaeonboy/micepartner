@@ -1,5 +1,5 @@
+import { useLayoutEffect, useRef } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { resolveTemplateIdForPath, templateCatalogMap } from './content/publicPageLayouts';
 import { SiteContentSplash } from './components/SiteContentSplash';
 import { SiteLayout } from './components/SiteLayout';
 import { useSiteContent } from './context/SiteContentContext';
@@ -7,20 +7,18 @@ import { AdminPage } from './pages/AdminPage';
 import { AdminLoginPage } from './pages/AdminLoginPage';
 import { AboutPage } from './pages/AboutPage';
 import { CaseStudiesPage } from './pages/CaseStudiesPage';
-import { ContactPage } from './pages/ContactPage';
 import { HomePage } from './pages/HomePage';
+import { MemberDetailPage } from './pages/MemberDetailPage';
 import { MembersPage } from './pages/MembersPage';
 import { NoticeDetailPage } from './pages/NoticeDetailPage';
 import { MenuPendingPage } from './pages/MenuPendingPage';
 import { PortfolioDetailPage } from './pages/PortfolioDetailPage';
-import { CustomPageRenderer } from './pages/CustomPageRenderer';
+import { FAQPage } from './pages/FAQPage';
 import { ResourceDetailPage } from './pages/ResourceDetailPage';
 import { ResourceFilesPage } from './pages/ResourceFilesPage';
 import { ResourcesPage } from './pages/ResourcesPage';
-import { ServicesPage } from './pages/ServicesPage';
+import { LoginPage } from './pages/LoginPage';
 import { getAdminToken } from './lib/adminSession';
-import { findCustomPageByPath } from './lib/customPages';
-import type { ReactNode } from 'react';
 
 function ProtectedAdminRoute() {
   const { ready } = useSiteContent();
@@ -41,32 +39,12 @@ function normalizeMenuPath(path: string) {
   return pathname.split('?')[0] || '/';
 }
 
-function ResolvedPublicPageRoute({ pathKey, fallback }: { pathKey: string; fallback: ReactNode }) {
-  const { siteContent } = useSiteContent();
-  const matchedCustomPage = findCustomPageByPath(siteContent.customPages, pathKey);
-
-  if (matchedCustomPage) {
-    return <CustomPageRenderer page={matchedCustomPage} />;
-  }
-
-  return <>{fallback}</>;
-}
-
 function ConfiguredMenuFallback() {
   const location = useLocation();
-  const { siteContent, siteData } = useSiteContent();
+  const { siteContent } = useSiteContent();
   const currentFullPath = `${location.pathname}${location.search}${location.hash}`;
   const headerItems = siteContent.menus.headerItems;
   const footerQuickLinks = siteContent.menus.footerQuickLinks;
-  const resolvedTemplateTitle = (() => {
-    const templateId = resolveTemplateIdForPath(location.pathname, siteData.templates);
-    return templateId ? templateCatalogMap[templateId]?.title : undefined;
-  })();
-  const matchedCustomPage = findCustomPageByPath(siteContent.customPages, location.pathname);
-
-  if (matchedCustomPage) {
-    return <CustomPageRenderer page={matchedCustomPage} />;
-  }
 
   const matchedParent = headerItems.find((item) => normalizeMenuPath(item.path) === location.pathname);
 
@@ -81,7 +59,6 @@ function ConfiguredMenuFallback() {
       <MenuPendingPage
         label={firstChild?.label || matchedParent.label}
         parentLabel={matchedParent.label}
-        templateTitle={resolvedTemplateTitle}
       />
     );
   }
@@ -91,41 +68,75 @@ function ConfiguredMenuFallback() {
     .find((item) => normalizeMenuPath(item.path) === location.pathname);
 
   if (matchedChild) {
-    return <MenuPendingPage label={matchedChild.label} parentLabel={matchedChild.parentLabel} templateTitle={resolvedTemplateTitle} />;
+    return <MenuPendingPage label={matchedChild.label} parentLabel={matchedChild.parentLabel} />;
   }
 
   if (matchedParent) {
-    return <MenuPendingPage label={matchedParent.label} templateTitle={resolvedTemplateTitle} />;
+    return <MenuPendingPage label={matchedParent.label} />;
   }
 
   const matchedFooterLink = footerQuickLinks.find((item) => normalizeMenuPath(item.path) === location.pathname);
 
   if (matchedFooterLink) {
-    return <MenuPendingPage label={matchedFooterLink.label} templateTitle={resolvedTemplateTitle} />;
+    return <MenuPendingPage label={matchedFooterLink.label} />;
   }
 
   return <Navigate to="/" replace />;
 }
 
+function ScrollToTopOnRouteChange() {
+  const { pathname, search } = useLocation();
+  const { ready } = useSiteContent();
+  const isInitialRender = useRef(true);
+  const lastPathname = useRef(pathname);
+
+  useLayoutEffect(() => {
+    // 1. 데이터가 아직 로딩 중이면 아무것도 하지 않습니다.
+    if (!ready) return;
+
+    // 2. 데이터 로딩이 완료된 직후(새로고침 후 첫 로딩 완료)에도 스크롤을 건드리지 않습니다.
+    if (isInitialRender.current) {
+      isInitialRender.current = false;
+      lastPathname.current = pathname;
+      return;
+    }
+
+    // 3. 경로가 실제로 바뀌었을 때만 스크롤을 상단으로 올립니다.
+    if (lastPathname.current !== pathname) {
+      window.scrollTo({
+        top: 0,
+        left: 0,
+        behavior: 'auto',
+      });
+      lastPathname.current = pathname;
+    }
+  }, [pathname, search, ready]);
+
+  return null;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
+      <ScrollToTopOnRouteChange />
       <Routes>
         <Route path="/admin/login" element={<AdminLoginPage />} />
         <Route path="/admin" element={<ProtectedAdminRoute />} />
         <Route element={<SiteLayout />}>
-          <Route index element={<ResolvedPublicPageRoute pathKey="/" fallback={<HomePage />} />} />
-          <Route path="/services" element={<ResolvedPublicPageRoute pathKey="/services" fallback={<ServicesPage />} />} />
-          <Route path="/cases" element={<ResolvedPublicPageRoute pathKey="/cases" fallback={<CaseStudiesPage />} />} />
-          <Route path="/cases/:slug" element={<ResolvedPublicPageRoute pathKey="/cases/:slug" fallback={<PortfolioDetailPage />} />} />
+          <Route index element={<HomePage />} />
+          <Route path="/services" element={<Navigate to="/cases" replace />} />
+          <Route path="/cases" element={<CaseStudiesPage />} />
+          <Route path="/cases/:slug" element={<PortfolioDetailPage />} />
           <Route path="/resources" element={<Navigate to="/resources/notices" replace />} />
-          <Route path="/resources/notices" element={<ResolvedPublicPageRoute pathKey="/resources/notices" fallback={<ResourcesPage />} />} />
-          <Route path="/resources/files" element={<ResolvedPublicPageRoute pathKey="/resources/files" fallback={<ResourceFilesPage />} />} />
-          <Route path="/resources/notices/:slug" element={<ResolvedPublicPageRoute pathKey="/resources/notices/:slug" fallback={<NoticeDetailPage />} />} />
-          <Route path="/resources/files/:slug" element={<ResolvedPublicPageRoute pathKey="/resources/files/:slug" fallback={<ResourceDetailPage />} />} />
-          <Route path="/about" element={<ResolvedPublicPageRoute pathKey="/about" fallback={<AboutPage />} />} />
-          <Route path="/members" element={<ResolvedPublicPageRoute pathKey="/members" fallback={<MembersPage />} />} />
-          <Route path="/contact" element={<ResolvedPublicPageRoute pathKey="/contact" fallback={<ContactPage />} />} />
+          <Route path="/resources/notices" element={<ResourcesPage />} />
+          <Route path="/resources/files" element={<ResourceFilesPage />} />
+          <Route path="/resources/notices/:slug" element={<NoticeDetailPage />} />
+          <Route path="/resources/files/:slug" element={<ResourceDetailPage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/members" element={<MembersPage />} />
+          <Route path="/members/:slug" element={<MemberDetailPage />} />
+          <Route path="/faq" element={<FAQPage />} />
+          <Route path="/login" element={<LoginPage />} />
           <Route path="*" element={<ConfiguredMenuFallback />} />
         </Route>
       </Routes>

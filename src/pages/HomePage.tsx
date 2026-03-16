@@ -9,12 +9,17 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { Link } from 'react-router-dom';
-import { resolveTemplateIdForPage, resolveTemplateSectionsForPage } from '../content/publicPageLayouts';
 import { PageMeta } from '../components/PageMeta';
 import { useSiteContent } from '../context/SiteContentContext';
 import { fadeUp } from '../lib/motion';
 
 type ServicePreviewSlide = {
+  title: string;
+  description: string;
+  imageUrl: string;
+};
+
+type HeroBannerSlide = {
   title: string;
   description: string;
   imageUrl: string;
@@ -231,6 +236,329 @@ function ServicePreviewSlider({ items }: { items: ServicePreviewSlide[] }) {
   );
 }
 
+function HomeHeroSlider({
+  slides,
+  eyebrow,
+  badge,
+}: {
+  slides: HeroBannerSlide[];
+  eyebrow: string;
+  badge: string;
+}) {
+  const transitionDurationMs = 1380;
+  const autoplayDelayMs = 8200;
+  const [current, setCurrent] = useState(0);
+  const [isHovering, setIsHovering] = useState(false);
+  const [dragOffset, setDragOffset] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [transitionState, setTransitionState] = useState<{
+    from: number;
+    to: number;
+    direction: 1 | -1;
+    phase: 'setup' | 'animating';
+  } | null>(null);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef({
+    pointerId: -1,
+    startX: 0,
+    deltaX: 0,
+    dragging: false,
+  });
+
+  useEffect(() => {
+    setCurrent((value) => Math.min(value, Math.max(slides.length - 1, 0)));
+  }, [slides.length]);
+
+  useEffect(() => {
+    slides.forEach((slide) => {
+      if (!slide.imageUrl) {
+        return;
+      }
+
+      const image = new Image();
+      image.src = slide.imageUrl;
+    });
+  }, [slides]);
+
+  useEffect(() => {
+    if (!transitionState || transitionState.phase !== 'setup') {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      setTransitionState((currentTransition) =>
+        currentTransition ? { ...currentTransition, phase: 'animating' } : null,
+      );
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [transitionState]);
+
+  useEffect(() => {
+    if (!transitionState || transitionState.phase !== 'animating') {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setCurrent(transitionState.to);
+      setTransitionState(null);
+      setDragOffset(0);
+    }, transitionDurationMs);
+
+    return () => window.clearTimeout(timer);
+  }, [transitionDurationMs, transitionState]);
+
+  const startTransition = useCallback(
+    (nextIndex: number, direction: 1 | -1) => {
+      if (slides.length < 2 || nextIndex === current || transitionState) {
+        return;
+      }
+
+      setTransitionState({
+        from: current,
+        to: nextIndex,
+        direction,
+        phase: 'setup',
+      });
+    },
+    [current, slides.length, transitionState],
+  );
+
+  useEffect(() => {
+    if (slides.length < 2 || transitionState || isHovering || isDragging) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      startTransition((current + 1) % slides.length, 1);
+    }, autoplayDelayMs);
+
+    return () => window.clearTimeout(timer);
+  }, [autoplayDelayMs, current, isDragging, isHovering, slides.length, startTransition, transitionState]);
+
+  const prev = useCallback(() => {
+    startTransition(current === 0 ? slides.length - 1 : current - 1, -1);
+  }, [current, slides.length, startTransition]);
+
+  const next = useCallback(() => {
+    startTransition((current + 1) % slides.length, 1);
+  }, [current, slides.length, startTransition]);
+
+  const goTo = useCallback(
+    (index: number) => {
+      if (index === current) {
+        return;
+      }
+
+      const forwardDistance = (index - current + slides.length) % slides.length;
+      const backwardDistance = (current - index + slides.length) % slides.length;
+      startTransition(index, forwardDistance <= backwardDistance ? 1 : -1);
+    },
+    [current, slides.length, startTransition],
+  );
+
+  const handlePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (slides.length < 2 || transitionState) {
+      return;
+    }
+
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      return;
+    }
+
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      deltaX: 0,
+      dragging: true,
+    };
+
+    viewport.setPointerCapture(event.pointerId);
+    setIsDragging(true);
+  }, [slides.length, transitionState]);
+
+  const handlePointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current.dragging) {
+      return;
+    }
+
+    const viewport = viewportRef.current;
+    const viewportWidth = viewport?.clientWidth || 1;
+    const nextOffset = event.clientX - dragRef.current.startX;
+    const clampedOffset = Math.max(-viewportWidth * 0.92, Math.min(viewportWidth * 0.92, nextOffset));
+
+    dragRef.current.deltaX = clampedOffset;
+    setDragOffset(clampedOffset);
+  }, []);
+
+  const handlePointerEnd = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const viewport = viewportRef.current;
+
+    if (!viewport || !dragRef.current.dragging) {
+      return;
+    }
+
+    if (dragRef.current.pointerId === event.pointerId) {
+      viewport.releasePointerCapture(event.pointerId);
+    }
+
+    const deltaX = dragRef.current.deltaX;
+    const threshold = Math.max(60, viewport.clientWidth * 0.12);
+
+    dragRef.current.dragging = false;
+    setIsDragging(false);
+    setDragOffset(0);
+
+    if (Math.abs(deltaX) < threshold) {
+      return;
+    }
+
+    if (deltaX < 0) {
+      startTransition((current + 1) % slides.length, 1);
+      return;
+    }
+
+    startTransition(current === 0 ? slides.length - 1 : current - 1, -1);
+  }, [current, slides.length, startTransition]);
+
+  if (!slides[0]) {
+    return null;
+  }
+
+  const previousIndex = current === 0 ? slides.length - 1 : current - 1;
+  const nextIndex = (current + 1) % slides.length;
+  const idleIndices = Array.from(new Set([previousIndex, nextIndex, current]));
+
+  return (
+    <section className="home-hero">
+      <div
+        className="home-hero-slider"
+        role="region"
+        aria-roledescription="carousel"
+        aria-label="메인 히어로 배너"
+        onMouseEnter={() => setIsHovering(true)}
+        onMouseLeave={() => setIsHovering(false)}
+      >
+        <div
+          ref={viewportRef}
+          className={`home-hero-slider__viewport${isDragging ? ' is-dragging' : ''}`}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerEnd}
+          onPointerCancel={handlePointerEnd}
+        >
+          {transitionState
+            ? [transitionState.from, transitionState.to].map((index) => {
+                const slide = slides[index];
+                const isActive = index === transitionState.to;
+                const isIncoming = index === transitionState.to;
+                const transform =
+                  transitionState.phase === 'setup'
+                    ? isIncoming
+                      ? `translate3d(${transitionState.direction === 1 ? '100%' : '-100%'}, 0, 0)`
+                      : 'translate3d(0, 0, 0)'
+                    : isIncoming
+                      ? 'translate3d(0, 0, 0)'
+                      : `translate3d(${transitionState.direction === 1 ? '-100%' : '100%'}, 0, 0)`;
+
+                return (
+                  <article
+                    key={`${slide.title}-${index}`}
+                    className={`home-hero__frame home-hero__slide home-hero--centered${isActive ? ' is-active' : ''}`}
+                    style={{
+                      transform,
+                      transition:
+                        transitionState.phase === 'animating'
+                          ? `transform ${transitionDurationMs}ms cubic-bezier(0.22, 1, 0.36, 1)`
+                          : 'none',
+                      zIndex: isIncoming ? 3 : 2,
+                    }}
+                    aria-hidden={!isActive}
+                  >
+                    <img
+                      src={slide.imageUrl}
+                      alt={slide.title || '메인 비주얼'}
+                      className="home-hero__image"
+                      loading={index === 0 ? 'eager' : 'lazy'}
+                      decoding="async"
+                    />
+                    <div className="home-hero__overlay">
+                      <p className="home-hero__eyebrow">{eyebrow}</p>
+                      <h1 style={{ whiteSpace: 'pre-line' }}>{slide.title}</h1>
+                      <p>{slide.description}</p>
+                      <p className="home-hero__badge">{badge}</p>
+                    </div>
+                  </article>
+                );
+              })
+            : idleIndices.map((index) => {
+                const slide = slides[index];
+                const transform =
+                  index === current
+                    ? `translate3d(${dragOffset}px, 0, 0)`
+                    : index === previousIndex
+                      ? `translate3d(calc(-100% + ${dragOffset}px), 0, 0)`
+                      : `translate3d(calc(100% + ${dragOffset}px), 0, 0)`;
+
+                return (
+                  <article
+                    key={`${slide.title}-${index}`}
+                    className={`home-hero__frame home-hero__slide home-hero--centered${index === current ? ' is-active' : ''}`}
+                    style={{
+                      transform,
+                      transition: isDragging ? 'none' : 'transform 620ms cubic-bezier(0.22, 1, 0.36, 1)',
+                      zIndex: index === current ? 3 : 2,
+                    }}
+                    aria-hidden={index !== current}
+                  >
+                    <img
+                      src={slide.imageUrl}
+                      alt={slide.title || '메인 비주얼'}
+                      className="home-hero__image"
+                      loading={index === 0 ? 'eager' : 'lazy'}
+                      decoding="async"
+                    />
+                    <div className="home-hero__overlay">
+                      <p className="home-hero__eyebrow">{eyebrow}</p>
+                      <h1 style={{ whiteSpace: 'pre-line' }}>{slide.title}</h1>
+                      <p>{slide.description}</p>
+                      <p className="home-hero__badge">{badge}</p>
+                    </div>
+                  </article>
+                );
+              })}
+        </div>
+
+        {slides.length > 1 ? (
+          <div className="home-hero-slider__nav">
+            <div className="home-hero-slider__dots" aria-label="메인 히어로 슬라이드 선택">
+              {slides.map((slide, index) => (
+                <button
+                  key={`${slide.title}-${index}`}
+                  type="button"
+                  className={`home-hero-slider__dot${index === current ? ' is-active' : ''}`}
+                  aria-label={`${index + 1}번 배너 보기`}
+                  aria-pressed={index === current}
+                  onClick={() => goTo(index)}
+                />
+              ))}
+            </div>
+            <div className="home-hero-slider__actions">
+              <button type="button" className="home-slider__arrow" onClick={prev} aria-label="이전 메인 배너">
+                <ArrowLeft size={20} />
+              </button>
+              <button type="button" className="home-slider__arrow" onClick={next} aria-label="다음 메인 배너">
+                <ArrowRight size={20} />
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 function Section2Slider({ slides }: { slides: { img: string; title: string; desc: string }[] }) {
   const [current, setCurrent] = useState(0);
   const [dragOffset, setDragOffset] = useState(0);
@@ -384,7 +712,7 @@ function Section2Slider({ slides }: { slides: { img: string; title: string; desc
 }
 
 export function HomePage() {
-  const { siteCopy, siteContent, siteData } = useSiteContent();
+  const { siteCopy, siteContent } = useSiteContent();
   const copy = siteCopy.home;
   const home = siteContent.home;
   const heroEyebrow = /human partner/i.test(home.heroEyebrow) ? 'MICEPARTNER' : home.heroEyebrow;
@@ -400,6 +728,32 @@ export function HomePage() {
     ...item,
     imageUrl: item.imageUrl || placeholderImages[index],
   }));
+  const heroSlides = (Array.isArray(home.heroSlides) ? home.heroSlides : [])
+    .map((slide, index) => ({
+      title: String(slide?.title || '').trim() || copy.heroTitle,
+      description: String(slide?.description || '').trim() || copy.heroDescription,
+      imageUrl:
+        String(slide?.imageUrl || '').trim() ||
+        home.heroImageUrl ||
+        placeholderImages[index % placeholderImages.length],
+    }))
+    .filter((slide) => slide.title || slide.description || slide.imageUrl);
+  const resolvedHeroSlides =
+    heroSlides.length > 0
+      ? heroSlides
+      : [
+          {
+            title: copy.heroTitle,
+            description: copy.heroDescription,
+            imageUrl: home.heroImageUrl || placeholderImages[0],
+          },
+        ];
+  const primaryHeroImageUrl = resolvedHeroSlides[0]?.imageUrl || home.heroImageUrl || placeholderImages[0];
+  const servicePreviewImageUrl =
+    home.servicePreviewImageUrl ||
+    siteContent.about.heroImageUrl ||
+    siteContent.services.heroImageUrl ||
+    placeholderImages[1];
 
   const positioningSource = home.positioningCards.length > 0 ? home.positioningCards : featuredServices;
   const positioningSlides = positioningSource.map((item, index) => ({
@@ -407,47 +761,43 @@ export function HomePage() {
     title: item.title,
     desc: item.description,
   }));
-  const ctaImageUrl = home.ctaImageUrl || siteContent.contact.heroImageUrl || home.heroImageUrl;
+  const ctaImageUrl = home.ctaImageUrl || siteContent.contact.heroImageUrl || primaryHeroImageUrl;
   const galleryCases = siteContent.cases.entries.slice(0, 3);
   const resourcesPreview = siteContent.resources.items.slice(0, 3);
   const partnerLogos = home.partnerLogos.filter((item) => item.logoUrl || item.name);
   const midpoint = Math.max(1, Math.ceil(partnerLogos.length / 2));
   const topPartnerRow = partnerLogos.slice(0, midpoint);
   const bottomPartnerRow = partnerLogos.slice(midpoint).length > 0 ? partnerLogos.slice(midpoint) : partnerLogos.slice(0, midpoint);
-  const homeTemplateId = resolveTemplateIdForPage('home', siteData.templates);
-  const layoutSections = resolveTemplateSectionsForPage('home', homeTemplateId, siteData.templateLayouts);
-
   const buildPartnerTrack = (items: typeof partnerLogos) => [...items, ...items];
-  const blocks = {
+  const sections = {
     hero: (
-      <section className="home-hero">
-        <motion.article {...fadeUp} className="home-hero__frame home-hero--centered">
-          <img src={home.heroImageUrl} alt="메인 비주얼" className="home-hero__image" />
-          <div className="home-hero__overlay">
-            <p className="home-hero__eyebrow">{heroEyebrow}</p>
-            <h1 style={{ whiteSpace: 'pre-line' }}>{copy.heroTitle}</h1>
-            <p>{copy.heroDescription}</p>
-            <p style={{ fontSize: '14px', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', opacity: 0.74 }}>
-              {home.heroBadge}
-            </p>
-          </div>
-        </motion.article>
-      </section>
+      <HomeHeroSlider slides={resolvedHeroSlides} eyebrow={heroEyebrow} badge={home.heroBadge} />
     ),
     'service-preview': (
-      <section className="home-section" style={{ paddingTop: '100px' }}>
-        <div className="home-section__intro">
-          <p className="section-eyebrow">{home.servicePreviewEyebrow}</p>
-          <h2>{copy.servicePreviewTitle}</h2>
-          <p style={{ margin: 0, fontSize: '16px', lineHeight: 1.8, color: 'var(--text-muted)', maxWidth: '480px' }}>
-            {copy.servicePreviewDescription}
-          </p>
-          <Link to={home.primaryCtaHref} className="button button--primary" style={{ marginTop: '8px' }}>
-            {home.primaryCtaLabel}
-          </Link>
+      <section className="home-slogan-section">
+        <div className="home-slogan-section__inner">
+          <motion.div {...fadeUp} className="hero-slogan-side">
+            <span className="hero-slogan__label">{home.servicePreviewEyebrow || 'SLOGAN'}</span>
+            <h2 className="hero-slogan__main-text" style={{ whiteSpace: 'pre-line' }}>
+              {copy.servicePreviewTitle}
+            </h2>
+            <p className="hero-slogan__description">{copy.servicePreviewDescription}</p>
+            <Link to={home.primaryCtaHref} className="home-outline-button hero-slogan__button">
+              {home.primaryCtaLabel}
+            </Link>
+          </motion.div>
+          <motion.div 
+            initial={{ opacity: 0, x: 20 }} 
+            animate={{ opacity: 1, x: 0 }} 
+            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+            className="hero-image-side"
+          >
+            <img 
+              src={servicePreviewImageUrl}
+              alt={copy.servicePreviewTitle || '서비스 프리뷰 이미지'}
+            />
+          </motion.div>
         </div>
-
-        <ServicePreviewSlider items={featuredServices} />
       </section>
     ),
     positioning: (
@@ -470,7 +820,7 @@ export function HomePage() {
         <div className="home-section__intro home-section__intro--split">
           <div className="home-section__intro-left">
             <h2>{copy.portfolioPreviewTitle}</h2>
-            <Link to={home.secondaryCtaHref} className="button button--light" style={{ padding: '0 32px', height: '48px' }}>
+            <Link to={home.secondaryCtaHref} className="home-outline-button">
               {home.secondaryCtaLabel}
             </Link>
           </div>
@@ -480,9 +830,9 @@ export function HomePage() {
         </div>
 
         <div className="home-grid-gallery">
-          {galleryCases.map((item, index) => (
+              {galleryCases.map((item, index) => (
             <div key={item.slug} className="home-grid-gallery__item">
-              <img src={item.coverImageUrl || home.heroImageUrl} alt={item.title || `포트폴리오 ${index + 1}`} />
+              <img src={item.coverImageUrl || primaryHeroImageUrl} alt={item.title || `포트폴리오 ${index + 1}`} />
             </div>
           ))}
         </div>
@@ -575,12 +925,10 @@ export function HomePage() {
 
   return (
     <>
-      <PageMeta title="메인" description={copy.heroDescription} />
-      {layoutSections
-        .filter((section) => section.visible)
-        .map((section) => (
-          <Fragment key={section.id}>{blocks[section.id as keyof typeof blocks]}</Fragment>
-        ))}
+      <PageMeta title="메인" description={resolvedHeroSlides[0]?.description || copy.heroDescription} />
+      {Object.entries(sections).map(([sectionKey, section]) => (
+        <Fragment key={sectionKey}>{section}</Fragment>
+      ))}
     </>
   );
 }

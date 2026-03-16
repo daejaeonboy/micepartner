@@ -57,6 +57,12 @@ export type SiteCopy = {
     processTitle: string;
     processDescription: string;
   };
+  support: {
+    introTitle: string;
+    introDescription: string;
+    faqSectionTitle: string;
+    faqSectionDescription: string;
+  };
   contact: {
     introTitle: string;
     introDescription: string;

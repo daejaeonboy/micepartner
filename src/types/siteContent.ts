@@ -1,5 +1,3 @@
-import type { TemplateCatalogId } from './pageTemplate';
-
 export type IconKey = string;
 
 export type SiteMetric = {
@@ -20,6 +18,12 @@ export type SiteCard = {
   imageUrl: string;
   badge?: string;
   points?: string[];
+};
+
+export type HeroSlide = {
+  title: string;
+  description: string;
+  imageUrl: string;
 };
 
 export type TimelineItem = {
@@ -54,6 +58,7 @@ export type PortfolioEntry = {
   result: string;
   coverImageUrl: string;
   gallery: PortfolioGalleryItem[];
+  updatedAt?: string;
   seoTitle?: string;
   seoDescription?: string;
 };
@@ -117,6 +122,7 @@ export type HeaderMenuChildItem = {
 export type HeaderMenuItem = {
   label: string;
   path: string;
+  imageUrl?: string;
   children: HeaderMenuChildItem[];
 };
 
@@ -127,50 +133,23 @@ export type MemberCompany = {
   address: string;
   phone: string;
   logoUrl: string;
+  updatedAt: string;
 };
 
-export type CustomPageSectionItem = {
-  kind?: string;
-  title: string;
-  description: string;
-  details: string;
-  meta: string;
-  badge: string;
-  imageUrl: string;
-  href: string;
-};
-
-export type CustomPageSection = {
-  id: string;
-  eyebrow: string;
-  title: string;
-  description: string;
-  imageUrl: string;
-  settings: Record<string, string>;
-  primaryButtonLabel: string;
-  primaryButtonHref: string;
-  secondaryButtonLabel: string;
-  secondaryButtonHref: string;
-  items: CustomPageSectionItem[];
-};
-
-export type CustomPageContent = {
-  path: string;
-  label: string;
-  parentLabel: string;
-  sourcePath: string;
-  templateId: TemplateCatalogId;
-  seoTitle: string;
-  seoDescription: string;
-  sections: CustomPageSection[];
+export type FAQItem = {
+  question: string;
+  answer: string;
+  category: string;
 };
 
 export type SitePageContent = {
   home: {
     servicePreviewEyebrow: string;
+    servicePreviewImageUrl: string;
     heroEyebrow: string;
     heroBadge: string;
     heroImageUrl: string;
+    heroSlides: HeroSlide[];
     heroPanelStatus: string;
     heroPanelTitle: string;
     heroPanelMetrics: SiteMetric[];
@@ -198,8 +177,13 @@ export type SitePageContent = {
     categoriesEyebrow: string;
     allCategoryLabel: string;
     cardsEyebrow: string;
+    searchPlaceholder: string;
+    searchButtonLabel: string;
+    totalLabel: string;
+    currentPageLabel: string;
     detailLinkLabel: string;
     emptyStateMessage: string;
+    emptyStateDescription: string;
     categories: string[];
     entries: PortfolioEntry[];
   };
@@ -226,6 +210,18 @@ export type SitePageContent = {
     highlights: SiteCard[];
     processSteps: TimelineItem[];
   };
+  support: {
+    introEyebrow: string;
+    title: string;
+    description: string;
+    phone: string;
+    hours: string;
+    chatLabel: string;
+    chatHref: string;
+    faqTitle: string;
+    faqCategories: string[];
+    faqs: FAQItem[];
+  };
   contact: {
     introEyebrow: string;
     optionsEyebrow: string;
@@ -240,6 +236,7 @@ export type SitePageContent = {
     eventDatePlaceholder: string;
     messageLabel: string;
     messagePlaceholder: string;
+    submitButtonLabel: string;
     submitPendingLabel: string;
     submitSuccessMessage: string;
     heroImageUrl: string;
@@ -248,7 +245,6 @@ export type SitePageContent = {
     responseSteps: TimelineItem[];
     checklist: string[];
     contactInfo: ContactInfoItem[];
-    submitButtonLabel: string;
   };
   members: {
     introEyebrow: string;
@@ -257,9 +253,10 @@ export type SitePageContent = {
     searchButtonLabel: string;
     totalLabel: string;
     currentPageLabel: string;
+    emptyStateTitle: string;
+    emptyStateDescription: string;
     companies: MemberCompany[];
   };
-  customPages: CustomPageContent[];
   menus: {
     headerItems: HeaderMenuItem[];
     footerQuickLinks: FooterLinkItem[];

@@ -1,9 +1,11 @@
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { PageBannerIntroBlock, PageSectionBlock, PublicPageTemplate } from '../components/PublicPageTemplate';
+import { Link } from 'react-router-dom';
+import { PageHeaderBlock, PageSectionBlock } from '../components/PublicPageTemplate';
 import { PageMeta } from '../components/PageMeta';
 import { useSiteContent } from '../context/SiteContentContext';
+import { createMemberCompanySlug, formatMonthDay } from '../lib/contentUtils';
 import { fadeUp } from '../lib/motion';
 
 const PAGE_SIZE = 10;
@@ -66,15 +68,14 @@ export function MembersPage() {
     event.preventDefault();
     setKeyword(searchInput);
   };
-  const blocks = {
-    intro: (
-      <PageBannerIntroBlock
-        eyebrow={content.introEyebrow}
+
+  return (
+    <>
+      <PageMeta title="MICE 회원" description={copy.introDescription} />
+      <PageHeaderBlock
         title={copy.introTitle}
         description={copy.introDescription}
       />
-    ),
-    directory: (
       <PageSectionBlock id="member-search">
         <motion.article {...fadeUp} className="members-search-panel">
           <form className="members-search-form" onSubmit={handleSearchSubmit}>
@@ -84,7 +85,7 @@ export function MembersPage() {
                 <select value={selectedCategory} onChange={(event) => setSelectedCategory(event.target.value)}>
                   {categories.map((item) => (
                     <option key={item} value={item}>
-                      {item === content.filterAllLabel ? '전체' : item}
+                      {item}
                     </option>
                   ))}
                 </select>
@@ -117,14 +118,18 @@ export function MembersPage() {
 
         {paginatedCompanies.length === 0 ? (
           <div className="members-empty-state">
-            <strong>검색 결과가 없습니다.</strong>
-            <p>검색어 또는 분과 조건을 다시 확인해 주세요.</p>
+            <strong>{content.emptyStateTitle}</strong>
+            <p>{content.emptyStateDescription}</p>
           </div>
         ) : (
           <div className="members-grid">
             {paginatedCompanies.map((company) => (
               <motion.article key={`${company.name}-${company.phone}`} {...fadeUp} className="member-card">
-                <div className="member-card__image-box">
+                <Link
+                  to={`/members/${createMemberCompanySlug(company.name)}`}
+                  className="member-card__image-box"
+                  aria-label={`${company.name} 상세 페이지 이동`}
+                >
                   {company.logoUrl ? (
                     <img src={company.logoUrl} alt={company.name} />
                   ) : (
@@ -132,7 +137,7 @@ export function MembersPage() {
                       <span>{company.name}</span>
                     </div>
                   )}
-                </div>
+                </Link>
                 <div className="member-card__content">
                   <h3 className="member-card__title">{company.name}</h3>
                   <p className="member-card__desc">
@@ -140,7 +145,7 @@ export function MembersPage() {
                     <br />
                     {company.address}
                   </p>
-                  <time className="member-card__date">2026. 3. 12.</time>
+                  {company.updatedAt ? <time className="member-card__date">{formatMonthDay(company.updatedAt)}</time> : null}
                 </div>
               </motion.article>
             ))}
@@ -196,13 +201,6 @@ export function MembersPage() {
           </div>
         ) : null}
       </PageSectionBlock>
-    ),
-  };
-
-  return (
-    <>
-      <PageMeta title="MICE 회원" description={copy.introDescription} />
-      <PublicPageTemplate page="members" blocks={blocks} />
     </>
   );
 }

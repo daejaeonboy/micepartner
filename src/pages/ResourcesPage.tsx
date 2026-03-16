@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BoardIndexSection } from '../components/BoardIndexSection';
-import { PageHeaderBlock, PageOwnerNoteBlock, PublicPageTemplate } from '../components/PublicPageTemplate';
+import { PageHeaderBlock } from '../components/PublicPageTemplate';
 import { PageMeta } from '../components/PageMeta';
 import { useSiteContent } from '../context/SiteContentContext';
 
@@ -48,76 +48,67 @@ export function ResourcesPage() {
   const visibleNotices = filteredNotices.slice(0, visibleCount);
   const canLoadMore = visibleCount < filteredNotices.length;
 
-  const blocks = {
-    header: (
-      <PageHeaderBlock
-        title={copy.noticesTitle}
-        description={copy.noticesDescription}
-        action={<Link to="/resources/files" className="resource-news-page__jump">자료실 보기</Link>}
-      />
-    ),
-    board: (
-      <BoardIndexSection
-        id="news-board"
-        toolbar={
-          <>
-            {noticeCategories.map((category) => (
-              <button
-                key={category}
-                type="button"
-                className={activeCategory === category ? 'board-tab is-active' : 'board-tab'}
-                onClick={() => setActiveCategory(category)}
-              >
-                {category}
-              </button>
-            ))}
-          </>
-        }
-        footer={
-          canLoadMore ? (
-            <button
-              type="button"
-              className="board-more-button"
-              onClick={() => setVisibleCount((current) => current + LOAD_MORE_COUNT)}
-            >
-              더 보기
-            </button>
-          ) : null
-        }
-      >
-        <div className="board-list">
-          {visibleNotices.length > 0 ? (
-            visibleNotices.map((item) => (
-              <Link key={item.slug} to={`/resources/notices/${item.slug}`} className="board-item">
-                <div className="board-item__category">
-                  {formatBoardDate(item.date)}
-                </div>
-                <div className="board-item__content">
-                  <h3 className="board-item__title">{item.title}</h3>
-                  <p style={{ margin: 0, fontSize: '15px', color: '#666', fontWeight: 400 }}>{item.summary}</p>
-                </div>
-                <div className="board-item__status">
-                  <span className="status-badge status-badge--active">
-                    {item.category || '일반'}
-                  </span>
-                </div>
-              </Link>
-            ))
-        ) : (
-          <div className="news-empty">조건에 맞는 소식이 없습니다.</div>
-        )}
-      </div>
-      </BoardIndexSection>
-    ),
-  };
-
-
   return (
     <>
       <PageMeta title={copy.noticesTitle} description={copy.noticesDescription} />
       <div className="news-page">
         <div className="news-page__inner">
-          <PublicPageTemplate page="resourcesNotices" blocks={blocks} />
+          <PageHeaderBlock
+            title={copy.noticesTitle}
+            description={copy.noticesDescription}
+            align="left"
+          />
+          <BoardIndexSection
+            id="news-board"
+            toolbar={
+              <>
+                {noticeCategories.map((category) => (
+                  <button
+                    key={category}
+                    type="button"
+                    className={activeCategory === category ? 'board-tab is-active' : 'board-tab'}
+                    onClick={() => setActiveCategory(category)}
+                  >
+                    {category}
+                  </button>
+                ))}
+              </>
+            }
+            footer={
+              canLoadMore ? (
+                <button
+                  type="button"
+                  className="board-more-button"
+                  onClick={() => setVisibleCount((current) => current + LOAD_MORE_COUNT)}
+                >
+                  더 보기
+                </button>
+              ) : null
+            }
+          >
+            <div className="board-list">
+              {visibleNotices.length > 0 ? (
+                visibleNotices.map((item) => (
+                  <Link key={item.slug} to={`/resources/notices/${item.slug}`} className="board-item">
+                    <div className="board-item__category">
+                      {formatBoardDate(item.date)}
+                    </div>
+                    <div className="board-item__content">
+                      <h3 className="board-item__title">{item.title}</h3>
+                      <p style={{ margin: 0, fontSize: '15px', color: '#666', fontWeight: 400 }}>{item.summary}</p>
+                    </div>
+                    <div className="board-item__status">
+                      <span className="status-badge status-badge--active">
+                        {item.category || '일반'}
+                      </span>
+                    </div>
+                  </Link>
+                ))
+              ) : (
+                <div className="news-empty">조건에 맞는 소식이 없습니다.</div>
+              )}
+            </div>
+          </BoardIndexSection>
         </div>
       </div>
     </>
