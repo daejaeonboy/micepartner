@@ -70,8 +70,27 @@ export function formatIsoLikeDate(value: string) {
   return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
 }
 
+export function getTodayDateInputValue() {
+  const today = new Date();
+  const timezoneOffset = today.getTimezoneOffset() * 60 * 1000;
+  return new Date(today.getTime() - timezoneOffset).toISOString().slice(0, 10);
+}
+
 export function createMemberCompanySlug(name: string) {
   return String(name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^\w가-힣]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+export function resolveMemberCompanySlug(company: { slug?: string; name: string }) {
+  return String(company?.slug || '').trim() || createMemberCompanySlug(company?.name || '');
+}
+
+export function createContentSlug(value: string) {
+  return String(value || '')
     .trim()
     .toLowerCase()
     .replace(/[^\w가-힣]+/g, '-')

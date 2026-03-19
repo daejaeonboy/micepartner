@@ -27,9 +27,11 @@ import { clearAdminToken, getAdminToken } from '../lib/adminSession';
 import {
   deleteAdminImage,
   deleteAdminSession,
+  fetchAdminUsers,
   fetchCurrentAdmin,
   fetchInquiries,
   saveSiteData,
+  updateAdminApproval,
   uploadAdminImage,
   updateInquiryStatus,
 } from '../lib/api';
@@ -115,8 +117,6 @@ const editableSections: EditableSectionDefinition[] = [
       ['introDescription', '상단 설명'],
       ['identityTitle', '회사 소개 영역 제목'],
       ['identityDescription', '회사 소개 영역 설명'],
-      ['identityCardTitle', '회사 소개 카드 제목'],
-      ['ownerCardTitle', '메시지 카드 제목'],
       ['strengthTitle', '강점 영역 제목'],
       ['strengthDescription', '강점 영역 설명'],
       ['processTitle', '프로세스 제목'],
@@ -183,7 +183,8 @@ const defaultPageLabels: Record<EditableSectionKey, string> = {
   footer: '푸터',
 };
 
-type AdminView = 'overview' | 'content' | 'faq' | 'inquiries';
+type AdminView = 'overview' | 'content' | 'faq' | 'inquiries' | 'admins';
+type AdminApprovalFilter = 'all' | 'pending' | 'approved';
 
 const menuLinkedPagePaths: Partial<Record<EditableSectionKey, string>> = {
   cases: '/cases',
@@ -441,18 +442,17 @@ const contentSectionGroups: Record<EditableSectionKey, ContentSectionGroup[]> = 
   cases: [
     { id: 'intro', title: '상단 소개', description: '포트폴리오 페이지 소개 문구와 검색 영역 문구를 관리합니다.', copyFields: ['introTitle', 'introDescription'], contentPrefixes: [['searchPlaceholder'], ['searchButtonLabel'], ['totalLabel'], ['currentPageLabel']], imagePrefixes: [] },
     { id: 'categories', title: '카테고리', description: '포트폴리오 카테고리 구조를 관리합니다.', copyFields: [], contentPrefixes: [['allCategoryLabel'], ['categories']], imagePrefixes: [] },
-    { id: 'cards', title: '사례 카드', description: '사례 카드와 빈 상태 안내, 대표 이미지를 관리합니다.', copyFields: [], contentPrefixes: [['emptyStateMessage'], ['emptyStateDescription'], ['entries']], imagePrefixes: [['entries']] },
+    { id: 'cards', title: '목록 설정', description: '운영사례 목록에서 사용하는 빈 상태 안내만 관리합니다. 개별 게시글은 프론트 편집에서 직접 작성합니다.', copyFields: [], contentPrefixes: [['emptyStateMessage'], ['emptyStateDescription']], imagePrefixes: [] },
   ],
   resources: [
-    { id: 'notices', title: '소식 페이지', description: '정보센터 > 소식 페이지 문구와 공지 상세 이미지를 관리합니다.', copyFields: ['noticesTitle', 'noticesDescription'], contentPrefixes: [['notices']], imagePrefixes: [['notices']] },
-    { id: 'downloads', title: '자료 페이지', description: '정보센터 > 자료 페이지 문구와 자료 상세 이미지를 관리합니다.', copyFields: ['downloadsTitle', 'downloadsDescription', 'sectionsDescription'], contentPrefixes: [['downloadsEyebrow'], ['items']], imagePrefixes: [['items']] },
-    { id: 'owner', title: '하단 안내', description: '정보센터 하단 안내 문구를 관리합니다.', copyFields: ['ownerTitle', 'ownerDescription'], contentPrefixes: [], imagePrefixes: [] },
+    { id: 'notices', title: '소식 페이지', description: '정보센터 > 소식 목록 페이지의 제목과 설명만 관리합니다. 개별 게시글은 프론트 편집에서 직접 작성합니다.', copyFields: ['noticesTitle', 'noticesDescription'], contentPrefixes: [], imagePrefixes: [] },
+    { id: 'downloads', title: '자료 페이지', description: '정보센터 > 자료 목록 페이지의 제목과 설명만 관리합니다. 개별 자료는 프론트 편집에서 직접 작성합니다.', copyFields: ['downloadsTitle', 'downloadsDescription'], contentPrefixes: [], imagePrefixes: [] },
   ],
   about: [
-    { id: 'intro', title: '상단 소개', description: '회사소개 상단 문구와 대표 이미지를 관리합니다.', copyFields: ['introTitle', 'introDescription'], contentPrefixes: [['introEyebrow']], imagePrefixes: [['heroImageUrl']] },
-    { id: 'identity', title: '정체성', description: '회사 정체성과 메시지 관련 문구를 관리합니다.', copyFields: ['identityTitle', 'identityDescription', 'identityCardTitle', 'ownerCardTitle'], contentPrefixes: [['identityEyebrow'], ['messageTitle'], ['messageBody'], ['identityPoints']], imagePrefixes: [] },
-    { id: 'strength', title: '강점', description: '강점 소개 문구와 강점 카드 이미지를 관리합니다.', copyFields: ['strengthTitle', 'strengthDescription'], contentPrefixes: [['strengthEyebrow'], ['highlights']], imagePrefixes: [['highlights']] },
-    { id: 'process', title: '프로세스', description: '회사소개 하단 프로세스 문구를 관리합니다.', copyFields: ['processTitle', 'processDescription'], contentPrefixes: [['processEyebrow'], ['processSteps']], imagePrefixes: [] },
+    { id: 'intro', title: '상단 소개', description: '회사소개 상단 제목, 본문, 대표 이미지를 관리합니다.', copyFields: ['introTitle', 'introDescription'], contentPrefixes: [], imagePrefixes: [['heroImageUrl']] },
+    { id: 'identity', title: 'Section 1', description: '첫 번째 회사소개 섹션의 제목, 본문, 이미지를 관리합니다. 카테고리명은 메뉴 관리 또는 프론트 편집에서 수정합니다.', copyFields: ['identityTitle', 'identityDescription'], contentPrefixes: [], imagePrefixes: [['identityImageUrl']] },
+    { id: 'strength', title: 'Section 2', description: '두 번째 회사소개 섹션의 제목, 본문, 이미지를 관리합니다. 카테고리명은 메뉴 관리 또는 프론트 편집에서 수정합니다.', copyFields: ['strengthTitle', 'strengthDescription'], contentPrefixes: [], imagePrefixes: [['strengthImageUrl']] },
+    { id: 'process', title: 'Section 3', description: '세 번째 회사소개 섹션의 제목, 본문, 이미지를 관리합니다. 카테고리명은 메뉴 관리 또는 프론트 편집에서 수정합니다.', copyFields: ['processTitle', 'processDescription'], contentPrefixes: [], imagePrefixes: [['processImageUrl']] },
   ],
   support: [
     { id: 'intro', title: '상단 소개', description: '고객센터 페이지 상단 문구를 관리합니다.', copyFields: ['introTitle', 'introDescription'], contentPrefixes: [['introEyebrow']], imagePrefixes: [] },
@@ -467,8 +467,7 @@ const contentSectionGroups: Record<EditableSectionKey, ContentSectionGroup[]> = 
     { id: 'guide-cards', title: '안내 카드', description: '진행 방식과 체크리스트 카드 제목을 관리합니다.', copyFields: ['processCardTitle', 'checklistCardTitle', 'placeholderCardTitle'], contentPrefixes: [['responseSteps'], ['checklist'], ['contactInfo']], imagePrefixes: [] },
   ],
   members: [
-    { id: 'intro', title: '상단 소개', description: '회원사 소개 페이지 상단 문구와 검색 영역 문구를 관리합니다.', copyFields: ['introTitle', 'introDescription'], contentPrefixes: [['filterAllLabel'], ['searchPlaceholder'], ['searchButtonLabel'], ['totalLabel'], ['currentPageLabel'], ['emptyStateTitle'], ['emptyStateDescription']], imagePrefixes: [] },
-    { id: 'companies', title: '회원사 목록', description: '회원사 카드 문구와 로고 이미지를 관리합니다.', copyFields: [], contentPrefixes: [['companies']], imagePrefixes: [['companies']] },
+    { id: 'intro', title: '상단 소개', description: '협력업체 페이지 상단 문구와 검색 영역 문구를 관리합니다. 개별 협력업체는 프론트 편집에서 직접 작성합니다.', copyFields: ['introTitle', 'introDescription'], contentPrefixes: [['filterAllLabel'], ['searchPlaceholder'], ['searchButtonLabel'], ['totalLabel'], ['currentPageLabel'], ['emptyStateTitle'], ['emptyStateDescription']], imagePrefixes: [] },
   ],
   menus: [
     { id: 'header-menu', title: '헤더 메뉴', description: '상단 네비게이션과 메가 메뉴 구조를 관리합니다.', copyFields: [], contentPrefixes: [['headerItems']], imagePrefixes: [] },
@@ -745,18 +744,6 @@ function pathsEqual(left: ImagePathSegment[], right: ImagePathSegment[]) {
   return left.length === right.length && left.every((segment, index) => segment === right[index]);
 }
 
-function createEmptyMemberCompany() {
-  return {
-    name: '새 회원사',
-    category: '분과',
-    secondaryCategory: '구분',
-    address: '주소를 입력해 주세요.',
-    phone: '전화번호를 입력해 주세요.',
-    logoUrl: '',
-    updatedAt: '2026.03.12',
-  };
-}
-
 function createEmptyHeroSlide() {
   return {
     title: '새 히어로 슬라이드',
@@ -799,15 +786,6 @@ function getGroupArrayActionConfig(page: EditableSectionKey, groupId: string): A
       arrayPath: ['heroSlides'],
       label: '히어로 슬라이드 추가',
       createItem: createEmptyHeroSlide,
-    };
-  }
-
-  if (page === 'members' && groupId === 'companies') {
-    return {
-      page: 'members',
-      arrayPath: ['companies'],
-      label: '회원사 추가',
-      createItem: createEmptyMemberCompany,
     };
   }
 
@@ -906,6 +884,31 @@ function isLongTextField(label: string, value: string) {
   );
 }
 
+function getCopyFieldRows(page: EditableSectionKey, field: string, value: string) {
+  if (
+    page === 'about' &&
+    ['introDescription', 'identityDescription', 'strengthDescription', 'processDescription'].includes(field)
+  ) {
+    return 8;
+  }
+
+  if (page === 'about' && field.toLowerCase().includes('title')) {
+    return 3;
+  }
+
+  return field.toLowerCase().includes('description') || field.toLowerCase().includes('body') || value.length > 120 ? 4 : 2;
+}
+
+function sortAdminUsers(items: AdminUser[]) {
+  return [...items].sort((left, right) => {
+    if (left.approved !== right.approved) {
+      return left.approved ? 1 : -1;
+    }
+
+    return String(right.createdAt).localeCompare(String(left.createdAt));
+  });
+}
+
 export function AdminPage() {
   const navigate = useNavigate();
   const { siteData, siteCopy, updateSiteData } = useSiteContent();
@@ -917,6 +920,12 @@ export function AdminPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | InquiryStatus>('all');
   const [adminToken, setAdminToken] = useState<string>(() => getAdminToken());
   const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
+  const [adminAccounts, setAdminAccounts] = useState<AdminUser[]>([]);
+  const [adminAccountsLoading, setAdminAccountsLoading] = useState(false);
+  const [adminAccountsError, setAdminAccountsError] = useState('');
+  const [updatingAdminId, setUpdatingAdminId] = useState('');
+  const [adminSearch, setAdminSearch] = useState('');
+  const [adminApprovalFilter, setAdminApprovalFilter] = useState<AdminApprovalFilter>('all');
   const [draftSiteCopy, setDraftSiteCopy] = useState<SiteCopy>(siteCopy);
   const [draftSiteContent, setDraftSiteContent] = useState<SitePageContent>(siteData.content);
   const [draftSiteEditor, setDraftSiteEditor] = useState<SiteEditorConfig>(siteData.editor);
@@ -1012,6 +1021,7 @@ export function AdminPage() {
     if (!adminToken) {
       navigate('/admin/login', { replace: true });
       setAdminUser(null);
+      setAdminAccounts([]);
       setItems([]);
       return;
     }
@@ -1026,7 +1036,7 @@ export function AdminPage() {
         }
 
         setAdminUser(user);
-        await loadInquiries(adminToken);
+        await Promise.all([loadInquiries(adminToken), loadAdminAccounts(adminToken)]);
       } catch {
         if (!active) {
           return;
@@ -1035,6 +1045,7 @@ export function AdminPage() {
         clearAdminToken();
         setAdminToken('');
         setAdminUser(null);
+        setAdminAccounts([]);
         setItems([]);
         navigate('/admin/login', { replace: true });
       }
@@ -1076,11 +1087,8 @@ export function AdminPage() {
     return {
       home: '메인 홈',
       cases: resolvedPageLabels.cases,
-      portfolioDetail: `${resolvedPageLabels.cases} 상세`,
       resourcesNotices: `${resolvedPageLabels.resources} ${noticesLabel}`,
-      noticeDetail: `${resolvedPageLabels.resources} ${noticesLabel} 상세`,
       resourcesFiles: `${resolvedPageLabels.resources} ${filesLabel}`,
-      resourceDetail: `${resolvedPageLabels.resources} ${filesLabel} 상세`,
       about: resolvedPageLabels.about,
       support: resolvedPageLabels.support,
       members: resolvedPageLabels.members,
@@ -1127,20 +1135,11 @@ export function AdminPage() {
         helperText: '포트폴리오 목록 페이지를 수정합니다.',
       },
       {
-        id: 'portfolioDetail',
-        title: resolvedEditorPageTitles.portfolioDetail,
-        icon: Layers3,
-        contentKey: 'cases',
-        groupIds: ['cards'],
-        path: '/cases/:slug',
-        helperText: '포트폴리오 상세 페이지에서 사용하는 사례 정보와 갤러리를 수정합니다.',
-      },
-      {
         id: 'members',
         title: resolvedEditorPageTitles.members,
         icon: Users,
         contentKey: 'members',
-        groupIds: ['intro', 'companies'],
+        groupIds: ['intro'],
         path: '/members',
         helperText: 'MICE 회원 페이지를 수정합니다.',
       },
@@ -1149,36 +1148,18 @@ export function AdminPage() {
         title: resolvedEditorPageTitles.resourcesNotices,
         icon: Search,
         contentKey: 'resources',
-        groupIds: ['notices', 'owner'],
+        groupIds: ['notices'],
         path: '/resources/notices',
         helperText: '정보센터 소식 페이지를 수정합니다.',
-      },
-      {
-        id: 'noticeDetail',
-        title: resolvedEditorPageTitles.noticeDetail,
-        icon: Search,
-        contentKey: 'resources',
-        groupIds: ['notices'],
-        path: '/resources/notices/:slug',
-        helperText: '소식 상세 페이지에서 사용하는 공지 본문, 이미지, 첨부 링크를 수정합니다.',
       },
       {
         id: 'resourcesFiles',
         title: resolvedEditorPageTitles.resourcesFiles,
         icon: Search,
         contentKey: 'resources',
-        groupIds: ['downloads', 'owner'],
+        groupIds: ['downloads'],
         path: '/resources/files',
         helperText: '정보센터 자료 페이지를 수정합니다.',
-      },
-      {
-        id: 'resourceDetail',
-        title: resolvedEditorPageTitles.resourceDetail,
-        icon: Search,
-        contentKey: 'resources',
-        groupIds: ['downloads'],
-        path: '/resources/files/:slug',
-        helperText: '자료 상세 페이지에서 사용하는 설명, 다운로드 링크, 대표 이미지를 수정합니다.',
       },
       {
         id: 'support',
@@ -1225,6 +1206,21 @@ export function AdminPage() {
     }
   };
 
+  const loadAdminAccounts = async (currentAdminToken: string) => {
+    setAdminAccountsLoading(true);
+    setAdminAccountsError('');
+
+    try {
+      const accounts = await fetchAdminUsers(currentAdminToken);
+      setAdminAccounts(sortAdminUsers(accounts));
+    } catch (loadError) {
+      const message = loadError instanceof Error ? loadError.message : '관리자 계정 목록을 불러오지 못했습니다.';
+      setAdminAccountsError(message);
+    } finally {
+      setAdminAccountsLoading(false);
+    }
+  };
+
   const handleLogout = async () => {
     if (adminToken) {
       try {
@@ -1237,6 +1233,7 @@ export function AdminPage() {
     clearAdminToken();
     setAdminToken('');
     setAdminUser(null);
+    setAdminAccounts([]);
     setItems([]);
     setError('');
     setContentError('');
@@ -1259,6 +1256,31 @@ export function AdminPage() {
       setError(message);
     } finally {
       setSavingId(null);
+    }
+  };
+
+  const handleAdminApprovalChange = async (targetAdmin: AdminUser, approved: boolean) => {
+    if (!adminToken) {
+      return;
+    }
+
+    setUpdatingAdminId(targetAdmin.id);
+    setAdminAccountsError('');
+
+    try {
+      const updatedAdmin = await updateAdminApproval(targetAdmin.id, approved, adminToken);
+      setAdminAccounts((current) =>
+        sortAdminUsers(current.map((item) => (item.id === updatedAdmin.id ? updatedAdmin : item))),
+      );
+
+      if (adminUser?.id === updatedAdmin.id) {
+        setAdminUser(updatedAdmin);
+      }
+    } catch (updateError) {
+      const message = updateError instanceof Error ? updateError.message : '관리자 승인 상태를 변경하지 못했습니다.';
+      setAdminAccountsError(message);
+    } finally {
+      setUpdatingAdminId('');
     }
   };
 
@@ -1441,11 +1463,13 @@ export function AdminPage() {
     setDraftSiteContent((current) => {
       const currentItems = getNestedValue(current[page], arrayPath);
       const nextItems = Array.isArray(currentItems) ? [...currentItems, createItem()] : [createItem()];
-
-      return {
+      const next = {
         ...current,
         [page]: updateNestedValue(current[page], arrayPath, nextItems),
       };
+
+      draftSiteContentRef.current = next;
+      return next;
     });
   };
 
@@ -1461,7 +1485,7 @@ export function AdminPage() {
         return current;
       }
 
-      return {
+      const next = {
         ...current,
         [page]: updateNestedValue(
           current[page],
@@ -1469,6 +1493,9 @@ export function AdminPage() {
           currentItems.filter((_, itemIndex) => itemIndex !== index),
         ),
       };
+
+      draftSiteContentRef.current = next;
+      return next;
     });
   };
 
@@ -1495,10 +1522,13 @@ export function AdminPage() {
       const [movedItem] = nextItems.splice(index, 1);
       nextItems.splice(targetIndex, 0, movedItem);
 
-      return {
+      const next = {
         ...current,
         [page]: updateNestedValue(current[page], arrayPath, nextItems),
       };
+
+      draftSiteContentRef.current = next;
+      return next;
     });
   };
 
@@ -1506,10 +1536,19 @@ export function AdminPage() {
 
   const [selectedHeaderMenuIndex, setSelectedHeaderMenuIndex] = useState(0);
 
+  useEffect(() => {
+    setSelectedHeaderMenuIndex((current) => {
+      const maxIndex = Math.max(0, draftSiteContent.menus.headerItems.length - 1);
+      return Math.min(current, maxIndex);
+    });
+  }, [draftSiteContent.menus.headerItems.length]);
+
   const renderMenuManager = () => {
     const headerItems = draftSiteContent.menus.headerItems;
     const footerLinks = draftSiteContent.menus.footerQuickLinks;
     const selectedHeaderMenu = headerItems[selectedHeaderMenuIndex];
+    const isAboutHeaderMenu = normalizeEditorMenuPath(selectedHeaderMenu?.path || '') === '/about';
+    const canAddChildMenu = Boolean(selectedHeaderMenu) && (!isAboutHeaderMenu || selectedHeaderMenu.children.length < 3);
 
     return (
       <div className="admin-menu-manager-container">
@@ -1586,7 +1625,7 @@ export function AdminPage() {
                     >
                       <Trash2 size={14} />
                     </button>
-                    <ChevronRight size={16} color="#94a3b8" />
+                    <ChevronRight size={16} color="#999" />
                   </div>
                 </div>
               ))}
@@ -1604,11 +1643,11 @@ export function AdminPage() {
                 className="button button--primary"
                 style={{ minHeight: '36px', padding: '0 12px', fontSize: '13px' }}
                 onClick={() => {
-                  if (selectedHeaderMenu) {
+                  if (selectedHeaderMenu && canAddChildMenu) {
                     handleAddArrayItem('menus', ['headerItems', selectedHeaderMenuIndex, 'children'], createEmptyHeaderMenuChild);
                   }
                 }}
-                disabled={!selectedHeaderMenu}
+                disabled={!canAddChildMenu}
               >
                 <Plus size={14} />
                 메뉴 추가
@@ -1634,6 +1673,9 @@ export function AdminPage() {
                   </p>
                   {isLockedManagedPath(selectedHeaderMenu.path) ? (
                     <p className="admin-helper-text">현재 구현된 페이지와 연결돼 있어 기본 경로는 고정됩니다.</p>
+                  ) : null}
+                  {isAboutHeaderMenu ? (
+                    <p className="admin-helper-text">회사소개 내부 메뉴와 연동되므로 하위 메뉴는 최대 3개까지 관리할 수 있습니다.</p>
                   ) : null}
                 </div>
 
@@ -1710,7 +1752,7 @@ export function AdminPage() {
                 <tbody>
                   {!selectedHeaderMenu || !selectedHeaderMenu.children || selectedHeaderMenu.children.length === 0 ? (
                     <tr>
-                      <td colSpan={4} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                      <td colSpan={4} style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
                         하위 메뉴가 없습니다.
                       </td>
                     </tr>
@@ -1894,6 +1936,30 @@ export function AdminPage() {
       }),
     [items, search, statusFilter],
   );
+  const filteredAdminAccounts = useMemo(
+    () =>
+      adminAccounts.filter((account) => {
+        const matchesApproval =
+          adminApprovalFilter === 'all'
+            ? true
+            : adminApprovalFilter === 'approved'
+              ? account.approved
+              : !account.approved;
+        const keyword = adminSearch.trim().toLowerCase();
+
+        if (!keyword) {
+          return matchesApproval;
+        }
+
+        const matchesSearch = [account.name, account.email, account.provider]
+          .join(' ')
+          .toLowerCase()
+          .includes(keyword);
+
+        return matchesApproval && matchesSearch;
+      }),
+    [adminAccounts, adminApprovalFilter, adminSearch],
+  );
 
   const selectedEditorPageMeta = editorPages.find((page) => page.id === selectedEditorPage) || editorPages[0];
   const selectedContentKey = selectedEditorPageMeta.contentKey;
@@ -1976,6 +2042,10 @@ export function AdminPage() {
       .filter(Boolean) as ContentSectionGroup[];
   }, [selectedContentGroupIds, selectedContentKey]);
   const pendingCount = countByStatus('new') + countByStatus('in_progress');
+  const approvedAdminCount = adminAccounts.filter((account) => account.approved).length;
+  const pendingAdminCount = adminAccounts.filter((account) => !account.approved).length;
+  const googleAdminCount = adminAccounts.filter((account) => account.provider === 'google').length;
+  const pendingAdminPreview = adminAccounts.filter((account) => !account.approved).slice(0, 3);
   const recentItems = items.slice(0, 3);
   const adminInitial = adminUser?.name.trim().charAt(0) || 'M';
 
@@ -2068,6 +2138,16 @@ export function AdminPage() {
         setActiveView('inquiries');
       },
     },
+    {
+      title: '가입 승인 관리',
+      description: '회원가입한 계정 상태를 보고 관리자 권한을 바로 부여하거나 해제합니다.',
+      metric: `${pendingAdminCount}명 승인 대기`,
+      icon: Users,
+      action: () => {
+        setActiveNavKey('admins');
+        setActiveView('admins');
+      },
+    },
   ];
 
   return (
@@ -2089,6 +2169,12 @@ export function AdminPage() {
                   label: '대시보드',
                   icon: LayoutDashboard,
                   view: 'overview',
+                })}
+                {renderNavItem({
+                  key: 'admins',
+                  label: '가입 승인 관리',
+                  icon: Users,
+                  view: 'admins',
                 })}
                 {renderNavItem({
                   key: 'content',
@@ -2142,6 +2228,8 @@ export function AdminPage() {
                   <span>
                     {activeView === 'overview'
                       ? '운영 현황'
+                      : activeView === 'admins'
+                        ? '가입 상태 확인 및 관리자 권한 관리'
                       : activeView === 'content'
                         ? `${selectedEditorPageMeta.title} 편집`
                         : activeView === 'faq'
@@ -2156,7 +2244,7 @@ export function AdminPage() {
                   <span className="admin-user-chip__avatar">{adminInitial}</span>
                   <span className="admin-user-chip__meta">
                     <strong>{adminUser.name}</strong>
-                    <small>{adminUser.email}</small>
+                    <small>{adminUser.email} · {adminUser.approved ? '승인된 관리자' : '승인 대기'}</small>
                   </span>
                 </div>
               </div>
@@ -2172,14 +2260,14 @@ export function AdminPage() {
                       <p>홈페이지 관리, 섹션 데이터 저장, 문의 운영을 대시보드 형식으로 정리했습니다.</p>
                     </div>
                     <div className="admin-hero-card__actions">
-                        <button
-                          type="button"
-                          className="button button--primary"
-                          onClick={() => {
-                            setActiveNavKey('content');
-                            setSelectedEditorPage('home');
-                            setActiveView('content');
-                          }}
+                      <button
+                        type="button"
+                        className="button button--primary"
+                        onClick={() => {
+                          setActiveNavKey('content');
+                          setSelectedEditorPage('home');
+                          setActiveView('content');
+                        }}
                       >
                         홈페이지 관리
                       </button>
@@ -2187,11 +2275,11 @@ export function AdminPage() {
                         type="button"
                         className="button button--light"
                         onClick={() => {
-                          setActiveNavKey('requests');
-                          setActiveView('inquiries');
+                          setActiveNavKey('admins');
+                          setActiveView('admins');
                         }}
                       >
-                        문의 확인
+                        가입 승인 관리
                       </button>
                     </div>
                   </motion.section>
@@ -2213,10 +2301,95 @@ export function AdminPage() {
                       <p>신규 및 처리중 문의</p>
                     </motion.article>
                     <motion.article {...fadeUp} className="admin-overview-stat">
-                      <span>현재 편집 대상</span>
-                      <strong>{selectedEditorPageMeta.title}</strong>
-                      <p>선택된 실제 페이지 기준으로 바로 편집 가능</p>
+                      <span>승인 대기 관리자</span>
+                      <strong>{pendingAdminCount}</strong>
+                      <p>현재 승인 전 상태로 대기 중인 계정</p>
                     </motion.article>
+                  </section>
+
+                  <section className="admin-panel admin-panel--approval">
+                    <div className="admin-panel__header admin-panel__header--stack">
+                      <div>
+                        <p className="admin-panel__eyebrow">가입 요청</p>
+                        <h2>새 관리자 가입 요청</h2>
+                        <p className="admin-panel__description">
+                          새로 가입한 계정은 기본적으로 승인 대기 상태로 들어옵니다. 여기서 승인하면 어드민과 프론트 편집 화면 접근이 바로 열립니다.
+                        </p>
+                      </div>
+                      <div className="admin-approval-summary">
+                        <span>승인됨 {approvedAdminCount}명</span>
+                        <span>대기 {pendingAdminCount}명</span>
+                      </div>
+                    </div>
+
+                    {adminAccountsError ? <p className="form-feedback form-feedback--error">{adminAccountsError}</p> : null}
+                    {adminAccountsLoading ? <p className="admin-empty">관리자 계정 목록을 불러오는 중입니다.</p> : null}
+                    {!adminAccountsLoading && adminAccounts.length === 0 ? (
+                      <p className="admin-empty">아직 등록된 관리자 계정이 없습니다.</p>
+                    ) : null}
+                    {!adminAccountsLoading && adminAccounts.length > 0 && pendingAdminPreview.length === 0 ? (
+                      <p className="admin-empty">현재 승인 대기 중인 가입 요청은 없습니다.</p>
+                    ) : null}
+
+                    {!adminAccountsLoading && pendingAdminPreview.length > 0 ? (
+                      <div className="admin-approval-list">
+                        {pendingAdminPreview.map((account) => {
+                          const isCurrentAdmin = adminUser?.id === account.id;
+                          const isUpdating = updatingAdminId === account.id;
+
+                          return (
+                            <article key={account.id} className="admin-approval-item">
+                              <div className="admin-approval-item__meta">
+                                <div className="admin-approval-item__identity">
+                                  <strong>{account.name}</strong>
+                                  <span>{account.email}</span>
+                                </div>
+                                <div className="admin-approval-item__details">
+                                  <span>{account.provider === 'google' ? 'Google 로그인' : '이메일 로그인'}</span>
+                                  <span>{account.approved ? '승인됨' : '승인 대기'}</span>
+                                  <span>{new Date(account.createdAt).toLocaleString('ko-KR')}</span>
+                                  {isCurrentAdmin ? <span>현재 로그인</span> : null}
+                                </div>
+                              </div>
+
+                              <div className="admin-approval-item__actions">
+                                <button
+                                  type="button"
+                                  className={`button ${account.approved ? 'button--light' : 'button--primary'}`}
+                                  onClick={() => void handleAdminApprovalChange(account, !account.approved)}
+                                  disabled={isUpdating || (isCurrentAdmin && account.approved)}
+                                  title={isCurrentAdmin && account.approved ? '현재 로그인한 관리자 본인은 승인 해제할 수 없습니다.' : undefined}
+                                >
+                                  {isUpdating
+                                    ? '저장 중...'
+                                    : account.approved
+                                      ? isCurrentAdmin
+                                        ? '현재 승인 유지'
+                                        : '권한 해제'
+                                      : '관리자 권한 부여'}
+                                </button>
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+
+                    <div className="admin-panel__header" style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #eef2f6' }}>
+                      <div>
+                        <p className="admin-panel__description">전체 계정 상태 확인과 검색은 전용 메뉴에서 바로 볼 수 있어.</p>
+                      </div>
+                      <button
+                        type="button"
+                        className="admin-inline-button"
+                        onClick={() => {
+                          setActiveNavKey('admins');
+                          setActiveView('admins');
+                        }}
+                      >
+                        가입 승인 관리 열기
+                      </button>
+                    </div>
                   </section>
 
                   <section className="admin-shortcut-grid">
@@ -2429,12 +2602,17 @@ export function AdminPage() {
                             {groupFields.length > 0 ? (
                               <div className="admin-field-grid--full" style={{ marginBottom: '24px' }}>
                                 <strong className="admin-section-group-card__label">기본 텍스트(카피) 편집</strong>
+                                {selectedContentKey === 'about' ? (
+                                  <p className="admin-helper-text" style={{ marginTop: '8px' }}>
+                                    본문은 빈 줄을 넣어 문단을 나누면 회사소개 페이지에서도 문단 단위로 표시된다.
+                                  </p>
+                                ) : null}
                                 <div className="admin-field-grid" style={{ marginTop: '12px' }}>
                                   {groupFields.map(([field, label]) => (
                                     <label key={field} className="form-field">
                                       <span>{label}</span>
                                       <textarea
-                                        rows={field.toLowerCase().includes('description') ? 4 : 2}
+                                        rows={getCopyFieldRows(selectedContentKey, field, (draftSiteCopy[selectedContentKey] as Record<string, string>)[field] || '')}
                                         value={(draftSiteCopy[selectedContentKey] as Record<string, string>)[field] || ''}
                                         onChange={(event) => handleCopyFieldChange(selectedContentKey, field, event.target.value)}
                                       />
@@ -2737,7 +2915,7 @@ export function AdminPage() {
                               <Save size={20} />
                               {isSavingGroup ? `${group.title} 저장 중...` : `${group.title} 데이터만 저장하기`}
                             </button>
-                            <p style={{ textAlign: 'center', marginTop: '12px', color: '#94a3b8', fontSize: '13px' }}>
+                            <p style={{ textAlign: 'center', marginTop: '12px', color: '#999', fontSize: '13px' }}>
                               상기 버튼을 누르면 이 섹션의 변경사항이 즉시 서버에 저장됩니다.
                             </p>
                           </div>
@@ -2879,6 +3057,130 @@ export function AdminPage() {
                 </>
               ) : null}
 
+              {activeView === 'admins' ? (
+                <>
+                  <section className="admin-overview-stats">
+                    <motion.article {...fadeUp} className="admin-overview-stat">
+                      <span>전체 계정</span>
+                      <strong>{adminAccounts.length}</strong>
+                      <p>가입된 관리자 계정 수</p>
+                    </motion.article>
+                    <motion.article {...fadeUp} className="admin-overview-stat">
+                      <span>승인 완료</span>
+                      <strong>{approvedAdminCount}</strong>
+                      <p>바로 편집 가능한 계정</p>
+                    </motion.article>
+                    <motion.article {...fadeUp} className="admin-overview-stat">
+                      <span>승인 대기</span>
+                      <strong>{pendingAdminCount}</strong>
+                      <p>권한 부여를 기다리는 계정</p>
+                    </motion.article>
+                    <motion.article {...fadeUp} className="admin-overview-stat">
+                      <span>Google 가입</span>
+                      <strong>{googleAdminCount}</strong>
+                      <p>Google 로그인으로 들어온 계정</p>
+                    </motion.article>
+                  </section>
+
+                  <section className="admin-panel admin-panel--approval">
+                    <div className="admin-panel__header admin-panel__header--stack">
+                      <div>
+                        <p className="admin-panel__eyebrow">관리자 계정</p>
+                        <h2>가입 승인 관리</h2>
+                        <p className="admin-panel__description">
+                          누가 가입했는지 바로 확인하고, 승인 대기 상태인 계정에 관리자 권한을 줄 수 있게 정리했습니다.
+                        </p>
+                      </div>
+                      <div className="admin-approval-summary">
+                        <span>승인됨 {approvedAdminCount}명</span>
+                        <span>대기 {pendingAdminCount}명</span>
+                      </div>
+                    </div>
+
+                    <div className="content-grid-2">
+                      <label className="form-field">
+                        <span>계정 검색</span>
+                        <div className="admin-search-field">
+                          <Search size={16} />
+                          <input
+                            type="text"
+                            value={adminSearch}
+                            onChange={(event) => setAdminSearch(event.target.value)}
+                            placeholder="이름, 이메일, 로그인 방식 검색"
+                          />
+                        </div>
+                      </label>
+                      <label className="form-field">
+                        <span>가입 상태</span>
+                        <select
+                          value={adminApprovalFilter}
+                          onChange={(event) => setAdminApprovalFilter(event.target.value as AdminApprovalFilter)}
+                        >
+                          <option value="all">전체</option>
+                          <option value="pending">승인 대기</option>
+                          <option value="approved">승인 완료</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    {adminAccountsError ? <p className="form-feedback form-feedback--error">{adminAccountsError}</p> : null}
+                    {adminAccountsLoading ? <p className="admin-empty">관리자 계정 목록을 불러오는 중입니다.</p> : null}
+                    {!adminAccountsLoading && adminAccounts.length === 0 ? (
+                      <p className="admin-empty">아직 등록된 관리자 계정이 없습니다.</p>
+                    ) : null}
+                    {!adminAccountsLoading && adminAccounts.length > 0 && filteredAdminAccounts.length === 0 ? (
+                      <p className="admin-empty">현재 조건에 맞는 관리자 계정이 없습니다.</p>
+                    ) : null}
+
+                    {!adminAccountsLoading && filteredAdminAccounts.length > 0 ? (
+                      <div className="admin-approval-list">
+                        {filteredAdminAccounts.map((account) => {
+                          const isCurrentAdmin = adminUser?.id === account.id;
+                          const isUpdating = updatingAdminId === account.id;
+
+                          return (
+                            <article key={account.id} className="admin-approval-item admin-approval-item--stack">
+                              <div className="admin-approval-item__meta">
+                                <div className="admin-approval-item__identity">
+                                  <strong>{account.name}</strong>
+                                  <span>{account.email}</span>
+                                </div>
+                                <div className="admin-approval-item__details">
+                                  <span>{account.provider === 'google' ? 'Google 로그인' : '이메일 로그인'}</span>
+                                  <span className={account.approved ? 'admin-access-badge admin-access-badge--approved' : 'admin-access-badge admin-access-badge--pending'}>
+                                    {account.approved ? '관리자 권한 있음' : '승인 대기'}
+                                  </span>
+                                  <span>가입일 {new Date(account.createdAt).toLocaleString('ko-KR')}</span>
+                                  {isCurrentAdmin ? <span>현재 로그인</span> : null}
+                                </div>
+                              </div>
+
+                              <div className="admin-approval-item__actions">
+                                <button
+                                  type="button"
+                                  className={`button ${account.approved ? 'button--light' : 'button--primary'}`}
+                                  onClick={() => void handleAdminApprovalChange(account, !account.approved)}
+                                  disabled={isUpdating || (isCurrentAdmin && account.approved)}
+                                  title={isCurrentAdmin && account.approved ? '현재 로그인한 관리자 본인은 승인 해제할 수 없습니다.' : undefined}
+                                >
+                                  {isUpdating
+                                    ? '저장 중...'
+                                    : account.approved
+                                      ? isCurrentAdmin
+                                        ? '현재 승인 유지'
+                                        : '권한 해제'
+                                      : '관리자 권한 부여'}
+                                </button>
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                  </section>
+                </>
+              ) : null}
+
               {activeView === 'faq' ? (
                 <div className="admin-faq-container">
                   <div className="admin-faq-header">
@@ -2894,7 +3196,7 @@ export function AdminPage() {
                         type="button"
                         className="button button--light"
                         onClick={() => setIsCategoryModalOpen(true)}
-                        style={{ borderRadius: '14px', height: '48px' }}
+                        style={{ borderRadius: 0, height: '48px' }}
                       >
                         <Plus size={18} />
                         카테고리 관리
@@ -2903,7 +3205,7 @@ export function AdminPage() {
                         type="button"
                         className="button button--primary"
                         onClick={() => setIsFaqModalOpen(true)}
-                        style={{ background: 'var(--brand)', border: 'none', borderRadius: '14px', height: '48px' }}
+                        style={{ background: 'var(--brand)', border: 'none', borderRadius: 0, height: '48px' }}
                       >
                         <Plus size={18} />
                         FAQ 추가
@@ -2913,7 +3215,7 @@ export function AdminPage() {
                         className="button button--primary"
                         onClick={() => void handleSaveContent('고객센터 FAQ', 'faq:items')}
                         disabled={isSavingContent}
-                        style={{ borderRadius: '14px', height: '48px' }}
+                        style={{ borderRadius: 0, height: '48px' }}
                       >
                         <Save size={18} />
                         {isSavingContent && savingScopeKey === 'faq:items' ? '저장 중...' : '전체 저장'}
@@ -2948,7 +3250,7 @@ export function AdminPage() {
                             }));
                           }}
                         >
-                          <Trash2 size={18} color="#94a3b8" />
+                          <Trash2 size={18} color="#999" />
                         </button>
                         <h3 className="admin-faq-question">Q. {faq.question}</h3>
                         <p className="admin-faq-answer">A. {faq.answer}</p>
@@ -3005,7 +3307,7 @@ export function AdminPage() {
                                   }}
                                   style={{ border: 'none', background: 'none', padding: '4px', cursor: 'pointer' }}
                                 >
-                                  <Trash2 size={14} color="#94a3b8" />
+                                  <Trash2 size={14} color="#999" />
                                 </button>
                               </div>
                             </div>

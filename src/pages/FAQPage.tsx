@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Phone, MessageSquare, ChevronDown, ChevronUp } from 'lucide-react';
-import { PageHeaderBlock } from '../components/PublicPageTemplate';
+import { MessageSquare, ChevronDown, ChevronUp } from 'lucide-react';
+import { PageHeaderBlock, PageSectionBlock } from '../components/PublicPageTemplate';
 import { PageMeta } from '../components/PageMeta';
 import { useSiteContent } from '../context/SiteContentContext';
 import { fadeUp } from '../lib/motion';
@@ -28,19 +27,18 @@ export function FAQPage() {
   return (
     <>
       <PageMeta title={copy.introTitle} description={copy.introDescription} />
-      <div className="support-page-wrapper">
-        <PageHeaderBlock
-          title={copy.introTitle}
-          description={copy.introDescription}
-          align="left"
-        />
-        
+      
+      <PageHeaderBlock
+        title={copy.introTitle}
+        description={copy.introDescription}
+        align="left"
+        width="content"
+      />
+      
+      <PageSectionBlock>
         <div className="support-content-container">
           <motion.div {...fadeUp} className="support-contact-box">
             <div className="support-contact-info">
-              <div className="support-contact-icon">
-                <Phone size={24} />
-              </div>
               <div className="support-contact-details">
                 <h2>{content.phone}</h2>
                 <p>{content.hours}</p>
@@ -58,11 +56,6 @@ export function FAQPage() {
           </motion.div>
 
           <section className="faq-section">
-            <div className="faq-section-header">
-              <h3 className="faq-section-title">{copy.faqSectionTitle}</h3>
-              <p className="faq-section-desc">{copy.faqSectionDescription}</p>
-            </div>
-            
             <div className="faq-categories">
               {content.faqCategories.map((category) => (
                 <button
@@ -112,7 +105,7 @@ export function FAQPage() {
             </div>
           </section>
         </div>
-      </div>
+      </PageSectionBlock>
     </>
   );
 }

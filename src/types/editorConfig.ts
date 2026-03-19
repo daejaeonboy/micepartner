@@ -1,11 +1,8 @@
 export type BuiltinEditorPageId =
   | 'home'
   | 'cases'
-  | 'portfolioDetail'
   | 'resourcesNotices'
-  | 'noticeDetail'
   | 'resourcesFiles'
-  | 'resourceDetail'
   | 'about'
   | 'members'
   | 'support'

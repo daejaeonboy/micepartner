@@ -127,6 +127,7 @@ export type HeaderMenuItem = {
 };
 
 export type MemberCompany = {
+  slug?: string;
   name: string;
   category: string;
   secondaryCategory: string;
@@ -134,6 +135,7 @@ export type MemberCompany = {
   phone: string;
   logoUrl: string;
   updatedAt: string;
+  body?: string;
 };
 
 export type FAQItem = {
@@ -204,6 +206,9 @@ export type SitePageContent = {
     strengthEyebrow: string;
     processEyebrow: string;
     heroImageUrl: string;
+    identityImageUrl: string;
+    strengthImageUrl: string;
+    processImageUrl: string;
     messageTitle: string;
     messageBody: string;
     identityPoints: string[];

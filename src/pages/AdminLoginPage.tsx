@@ -2,11 +2,11 @@ import { type FormEvent, useEffect, useState } from 'react';
 import { Eye, EyeOff, UserPlus } from 'lucide-react';
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { motion } from 'motion/react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { PageMeta } from '../components/PageMeta';
 import { getAdminToken, setAdminToken } from '../lib/adminSession';
 import { getFirebaseAuth, getFirebaseGoogleProvider, hasFirebaseConfig } from '../lib/firebase';
-import { logInAdmin, logInAdminWithGoogle, signUpAdmin } from '../lib/api';
+import { ADMIN_APPROVAL_PENDING_MESSAGE, logInAdmin, logInAdminWithGoogle, signUpAdmin } from '../lib/api';
 
 const fadeUp = {
   initial: { opacity: 0, y: 24 },
@@ -17,11 +17,13 @@ const fadeUp = {
 
 export function AdminLoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [authMode, setAuthMode] = useState<'signup' | 'login'>('login');
   const [authName, setAuthName] = useState('');
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authError, setAuthError] = useState('');
+  const [authNotice, setAuthNotice] = useState('');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [googleMessage, setGoogleMessage] = useState('');
@@ -33,6 +35,12 @@ export function AdminLoginPage() {
       navigate('/admin', { replace: true });
     }
   }, [navigate]);
+
+  useEffect(() => {
+    if (searchParams.get('approval') === 'pending') {
+      setAuthError(ADMIN_APPROVAL_PENDING_MESSAGE);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!hasFirebaseConfig()) {
@@ -48,12 +56,20 @@ export function AdminLoginPage() {
   const handleAuth = async () => {
     setIsAuthenticating(true);
     setAuthError('');
+    setAuthNotice('');
 
     try {
       const session =
         authMode === 'signup'
           ? await signUpAdmin(authName.trim(), authEmail.trim(), authPassword)
           : await logInAdmin(authEmail.trim(), authPassword);
+
+      if (!session.user.approved) {
+        setAuthMode('login');
+        setAuthPassword('');
+        setAuthNotice('가입 요청이 접수되었습니다. 승인된 관리자 계정으로 승인 후 다시 로그인해 주세요.');
+        return;
+      }
 
       setAdminToken(session.token);
       navigate('/admin', { replace: true });
@@ -73,11 +89,13 @@ export function AdminLoginPage() {
   const handleSwitchMode = () => {
     setAuthMode((current) => (current === 'login' ? 'signup' : 'login'));
     setAuthError('');
+    setAuthNotice('');
   };
 
   const handleGoogleLogin = async () => {
     setIsGoogleAuthenticating(true);
     setAuthError('');
+    setAuthNotice('');
 
     try {
       const auth = getFirebaseAuth();
@@ -150,6 +168,7 @@ export function AdminLoginPage() {
                 </div>
               </label>
 
+              {authNotice ? <p className="form-feedback form-feedback--success">{authNotice}</p> : null}
               {authError ? <p className="form-feedback form-feedback--error">{authError}</p> : null}
 
               <button type="submit" className="button button--primary admin-login-submit" disabled={isAuthenticating}>

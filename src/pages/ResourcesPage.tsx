@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { BoardIndexSection } from '../components/BoardIndexSection';
-import { PageHeaderBlock } from '../components/PublicPageTemplate';
+import { Link, useSearchParams } from 'react-router-dom';
+import { ContentPagination } from '../components/ContentPagination';
 import { PageMeta } from '../components/PageMeta';
+import { PageHeaderBlock, PageSectionBlock } from '../components/PublicPageTemplate';
 import { useSiteContent } from '../context/SiteContentContext';
+import { getAdminToken } from '../lib/adminSession';
 
-const INITIAL_NOTICE_COUNT = 10;
-const LOAD_MORE_COUNT = 10;
+const PAGE_SIZE = 10;
 
 function formatBoardDate(value: string) {
   const trimmed = String(value || '').trim();
@@ -18,9 +18,10 @@ export function ResourcesPage() {
   const { siteCopy, siteContent } = useSiteContent();
   const copy = siteCopy.resources;
   const content = siteContent.resources;
+  const isEditorLoggedIn = Boolean(getAdminToken());
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeCategory, setActiveCategory] = useState('전체');
-  const [searchKeyword, setSearchKeyword] = useState('');
-  const [visibleCount, setVisibleCount] = useState(INITIAL_NOTICE_COUNT);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const noticeCategories = useMemo(() => {
     const categories = Array.from(
@@ -29,88 +30,97 @@ export function ResourcesPage() {
     return ['전체', ...categories];
   }, [content.notices]);
 
-  const filteredNotices = useMemo(() => {
-    const keyword = searchKeyword.trim().toLowerCase();
-    return content.notices.filter((item) => {
-      const matchesCategory = activeCategory === '전체' || item.category === activeCategory;
-      if (!matchesCategory) return false;
-      if (!keyword) return true;
-      return [item.title, item.summary, item.category].some((field) =>
-        String(field || '').toLowerCase().includes(keyword)
-      );
-    });
-  }, [activeCategory, content.notices, searchKeyword]);
-
   useEffect(() => {
-    setVisibleCount(INITIAL_NOTICE_COUNT);
-  }, [activeCategory, searchKeyword]);
+    const cat = searchParams.get('category') || '전체';
+    setActiveCategory(cat);
+    setCurrentPage(1);
+  }, [searchParams]);
 
-  const visibleNotices = filteredNotices.slice(0, visibleCount);
-  const canLoadMore = visibleCount < filteredNotices.length;
+  const handleCategoryChange = (category: string) => {
+    if (category === '전체') {
+      setSearchParams({});
+    } else {
+      setSearchParams({ category });
+    }
+  };
+
+  const filteredNotices = useMemo(() => {
+    return content.notices.filter((item) => {
+      return activeCategory === '전체' || item.category === activeCategory;
+    });
+  }, [activeCategory, content.notices]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredNotices.length / PAGE_SIZE));
+
+  const paginatedNotices = useMemo(() => {
+    return filteredNotices.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  }, [filteredNotices, currentPage]);
 
   return (
     <>
       <PageMeta title={copy.noticesTitle} description={copy.noticesDescription} />
-      <div className="news-page">
-        <div className="news-page__inner">
-          <PageHeaderBlock
-            title={copy.noticesTitle}
-            description={copy.noticesDescription}
-            align="left"
-          />
-          <BoardIndexSection
-            id="news-board"
-            toolbar={
-              <>
-                {noticeCategories.map((category) => (
+      
+      <PageHeaderBlock
+        title={copy.noticesTitle}
+        description={copy.noticesDescription}
+        align="left"
+        width="content"
+      />
+
+      <PageSectionBlock>
+        <div className="resource-news-board-container">
+          <div className="category-tab-container is-flexible">
+            <ul className="category-tab-list">
+              {noticeCategories.map((category) => (
+                <li key={category} className="category-tab-item">
                   <button
-                    key={category}
-                    type="button"
-                    className={activeCategory === category ? 'board-tab is-active' : 'board-tab'}
-                    onClick={() => setActiveCategory(category)}
+                    className={`category-tab-button ${activeCategory === category ? 'is-active' : ''}`}
+                    onClick={() => handleCategoryChange(category)}
                   >
                     {category}
                   </button>
-                ))}
-              </>
-            }
-            footer={
-              canLoadMore ? (
-                <button
-                  type="button"
-                  className="board-more-button"
-                  onClick={() => setVisibleCount((current) => current + LOAD_MORE_COUNT)}
-                >
-                  더 보기
-                </button>
-              ) : null
-            }
-          >
-            <div className="board-list">
-              {visibleNotices.length > 0 ? (
-                visibleNotices.map((item) => (
-                  <Link key={item.slug} to={`/resources/notices/${item.slug}`} className="board-item">
-                    <div className="board-item__category">
-                      {formatBoardDate(item.date)}
-                    </div>
-                    <div className="board-item__content">
-                      <h3 className="board-item__title">{item.title}</h3>
-                      <p style={{ margin: 0, fontSize: '15px', color: '#666', fontWeight: 400 }}>{item.summary}</p>
-                    </div>
-                    <div className="board-item__status">
-                      <span className="status-badge status-badge--active">
-                        {item.category || '일반'}
-                      </span>
-                    </div>
-                  </Link>
-                ))
-              ) : (
-                <div className="news-empty">조건에 맞는 소식이 없습니다.</div>
-              )}
-            </div>
-          </BoardIndexSection>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="board-list">
+            {paginatedNotices.length > 0 ? (
+              paginatedNotices.map((item) => (
+                <Link key={item.slug} to={`/resources/notices/${item.slug}`} className="board-item">
+                  <div className="board-item__category">
+                    {formatBoardDate(item.date)}
+                  </div>
+                  <div className="board-item__content">
+                    <h3 className="board-item__title">{item.title}</h3>
+                    <p>{item.summary}</p>
+                  </div>
+                  <div className="board-item__status">
+                    <span className="status-badge status-badge--active">
+                      {item.category || '일반'}
+                    </span>
+                  </div>
+                </Link>
+              ))
+            ) : (
+              <div className="resource-news-empty">조건에 맞는 소식이 없습니다.</div>
+            )}
+          </div>
         </div>
-      </div>
+
+        <div className="content-list-footer">
+          <div className="content-list-footer__pagination">
+            <ContentPagination currentPage={currentPage} totalPages={totalPages} onChange={setCurrentPage} />
+          </div>
+          {isEditorLoggedIn ? (
+            <Link to="/resources/notices/new" className="button button--primary content-list-footer__write-button">
+              소식 등록
+            </Link>
+          ) : (
+            <div />
+          )}
+        </div>
+      </PageSectionBlock>
     </>
   );
 }

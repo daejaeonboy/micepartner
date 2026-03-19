@@ -21,6 +21,7 @@ import {
 } from 'firebase/firestore';
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { defaultSiteData } from '../content/defaultSiteData';
+import { createMemberCompanySlug } from './contentUtils';
 import type { AdminAuthResponse, AdminProvider, AdminUser } from '../types/admin';
 import type { Inquiry, InquiryInput, InquiryStatus } from '../types/inquiry';
 import type { SiteData } from '../types/siteData';
@@ -32,6 +33,7 @@ type AdminProfileDoc = {
   provider?: AdminProvider;
   createdAt?: string;
   updatedAt?: string;
+  approved?: boolean;
 };
 
 const COLLECTIONS = {
@@ -42,6 +44,7 @@ const COLLECTIONS = {
 
 const SITE_DATA_DOC_ID = 'current';
 const VALID_STATUSES = new Set<InquiryStatus>(['new', 'in_progress', 'completed']);
+export const ADMIN_APPROVAL_PENDING_MESSAGE = '관리자 승인 대기 중입니다. 승인 후 다시 로그인해 주세요.';
 const LEGACY_ABOUT_COPY = {
   introTitle: '회사소개 페이지는 회사가 누구인지보다 어떤 방식으로 일하는지까지 보여줘야 합니다.',
   introDescription:
@@ -117,6 +120,73 @@ function normalizeMenuLabel(label: string) {
   return String(label || '').trim().replace(/\s+/g, '');
 }
 
+function normalizeLegacyHeaderChildPath(parentPath: string, childPath: string, childLabel: string, fallbackPath = '') {
+  const normalizedParentPath = normalizeMenuPath(parentPath);
+  const normalizedChildPath = String(childPath || '').trim();
+  const normalizedChildLabel = normalizeMenuLabel(childLabel);
+
+  if (normalizedParentPath === '/resources' && normalizedChildPath.startsWith('/resources#')) {
+    if (normalizedChildLabel.includes('소식')) {
+      return '/resources/notices';
+    }
+
+    if (normalizedChildLabel.includes('자료')) {
+      return '/resources/files';
+    }
+
+    return fallbackPath || normalizedChildPath;
+  }
+
+  if (normalizedParentPath === '/about') {
+    if (normalizedChildPath === '/about#about-identity' || normalizedChildLabel.includes('회사개요') || normalizedChildLabel.includes('브랜드소개')) {
+      return '/about/overview';
+    }
+
+    if (
+      normalizedChildPath === '/about#about-strengths' ||
+      normalizedChildPath === '/about#about-strength' ||
+      normalizedChildLabel.includes('강점소개') ||
+      normalizedChildLabel.includes('사업영역')
+    ) {
+      return '/about/business';
+    }
+
+    if (normalizedChildPath === '/about#about-process' || normalizedChildLabel.includes('운영프로세스')) {
+      return '/about/process';
+    }
+  }
+
+  return normalizedChildPath || fallbackPath;
+}
+
+function normalizeAboutMenuChildren(
+  parentLabel: string,
+  children: Array<{ label: string; path: string }>,
+  fallbackChildren: Array<{ label: string; path: string }>,
+) {
+  const usedLabels = new Set([normalizeMenuLabel(parentLabel)]);
+
+  return fallbackChildren.map((fallbackChild, index) => {
+    const candidate = children[index];
+    const rawLabel = String(candidate?.label || fallbackChild.label).trim();
+    const normalizedLabel = normalizeMenuLabel(rawLabel);
+
+    if (!normalizedLabel || usedLabels.has(normalizedLabel)) {
+      usedLabels.add(normalizeMenuLabel(fallbackChild.label));
+      return {
+        label: fallbackChild.label,
+        path: fallbackChild.path,
+      };
+    }
+
+    usedLabels.add(normalizedLabel);
+    return {
+      label: rawLabel,
+      path: fallbackChild.path,
+    };
+  });
+}
+
 function hasOwnKey(target: unknown, key: string) {
   return Boolean(target && typeof target === 'object' && Object.prototype.hasOwnProperty.call(target, key));
 }
@@ -156,6 +226,24 @@ function inferProvider(user: User, fallback?: AdminProvider): AdminProvider {
   return hasGoogleProvider ? 'google' : 'password';
 }
 
+function isAdminApproved(profile?: AdminProfileDoc, hasExistingProfile = true) {
+  if (!hasExistingProfile) {
+    return false;
+  }
+
+  return profile?.approved !== false;
+}
+
+function assertApprovedAdminProfile(profile?: AdminProfileDoc, hasExistingProfile = true) {
+  if (!isAdminApproved(profile, hasExistingProfile)) {
+    throw new Error(ADMIN_APPROVAL_PENDING_MESSAGE);
+  }
+}
+
+export function isAdminApprovalPendingError(error: unknown) {
+  return error instanceof Error && error.message === ADMIN_APPROVAL_PENDING_MESSAGE;
+}
+
 function mapAdminUser(user: User, profile?: AdminProfileDoc): AdminUser {
   return {
     id: user.uid,
@@ -163,6 +251,21 @@ function mapAdminUser(user: User, profile?: AdminProfileDoc): AdminUser {
     email: normalizeEmail(profile?.email || user.email),
     provider: inferProvider(user, profile?.provider),
     createdAt: String(profile?.createdAt || nowIso()),
+    approved: isAdminApproved(profile),
+  };
+}
+
+function mapAdminProfileToUser(id: string, profile?: AdminProfileDoc): AdminUser {
+  const email = normalizeEmail(profile?.email);
+  const name = String(profile?.name || email.split('@')[0] || '관리자').trim();
+
+  return {
+    id,
+    name: name || '관리자',
+    email,
+    provider: profile?.provider === 'google' ? 'google' : 'password',
+    createdAt: String(profile?.createdAt || nowIso()),
+    approved: isAdminApproved(profile),
   };
 }
 
@@ -184,16 +287,53 @@ function mapFirebaseAuthError(error: unknown, fallback: string) {
 }
 
 function mapFirebaseStorageError(error: unknown, fallback: string) {
-  const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : '';
+  const code = getFirebaseErrorCode(error);
 
   const messages: Record<string, string> = {
-    'storage/unauthorized': '이미지 업로드 권한이 없습니다.',
+    'storage/unauthorized': '이미지 업로드 권한이 없습니다. 다시 로그인하거나 관리자 승인 상태를 확인해 봐.',
     'storage/canceled': '이미지 업로드가 취소되었습니다.',
     'storage/invalid-format': '지원하지 않는 파일 형식입니다.',
     'storage/quota-exceeded': '스토리지 업로드 한도를 초과했습니다.',
   };
 
   return messages[code] || fallback;
+}
+
+function getFirebaseErrorCode(error: unknown) {
+  return typeof error === 'object' && error && 'code' in error ? String(error.code) : '';
+}
+
+function sanitizeStoragePathSegment(value: string) {
+  return String(value || 'content')
+    .trim()
+    .replace(/\\/g, '/')
+    .replace(/[^a-zA-Z0-9/_-]/g, '-')
+    .replace(/\/{2,}/g, '/')
+    .replace(/^\/|\/$/g, '') || 'content';
+}
+
+async function uploadAdminStorageObject(user: User, page: string, file: File, contentType: string) {
+  const safeName = sanitizeFileName(file.name || 'file');
+  const safePage = sanitizeStoragePathSegment(page);
+  const storage = getFirebaseStorage();
+  const storageRef = ref(storage, `admin-assets/${user.uid}/${safePage}/${Date.now()}-${safeName}`);
+
+  const executeUpload = async (forceRefresh = false) => {
+    await user.getIdToken(forceRefresh);
+    return uploadBytes(storageRef, file, {
+      contentType,
+    });
+  };
+
+  try {
+    return await executeUpload(false);
+  } catch (error) {
+    if (getFirebaseErrorCode(error) !== 'storage/unauthorized') {
+      throw error;
+    }
+
+    return executeUpload(true);
+  }
 }
 
 async function waitForAuthUser() {
@@ -215,6 +355,7 @@ async function ensureAdminProfile(user: User, profilePatch?: Partial<AdminProfil
   const db = getFirebaseDb();
   const ref = doc(db, COLLECTIONS.admins, user.uid);
   const snapshot = await getDoc(ref);
+  const hasExistingProfile = snapshot.exists();
   const existing = snapshot.exists() ? (snapshot.data() as AdminProfileDoc) : {};
 
   const profile: AdminProfileDoc = {
@@ -224,6 +365,14 @@ async function ensureAdminProfile(user: User, profilePatch?: Partial<AdminProfil
     createdAt: existing.createdAt || nowIso(),
     updatedAt: nowIso(),
   };
+
+  if (typeof profilePatch?.approved === 'boolean') {
+    profile.approved = profilePatch.approved;
+  } else if (!hasExistingProfile) {
+    profile.approved = false;
+  } else if (typeof existing.approved === 'boolean') {
+    profile.approved = existing.approved;
+  }
 
   await setDoc(ref, profile, { merge: true });
   return profile;
@@ -246,13 +395,17 @@ function parseInquiry(id: string, data: Record<string, unknown>): Inquiry {
   };
 }
 
-async function getSignedInAdminUser() {
+async function getSignedInAdminUser(options?: { requireApproved?: boolean }) {
   const user = await waitForAuthUser();
   if (!user) {
     throw new Error('관리자 인증이 필요합니다.');
   }
 
+  const requireApproved = options?.requireApproved !== false;
   const profile = await ensureAdminProfile(user);
+  if (requireApproved) {
+    assertApprovedAdminProfile(profile);
+  }
   return mapAdminUser(user, profile);
 }
 
@@ -352,14 +505,17 @@ export async function signUpAdmin(name: string, email: string, password: string)
       name: trimmedName,
       email: trimmedEmail,
       provider: 'password',
+      approved: false,
     });
-
-    const token = await credential.user.getIdToken();
+    await signOut(auth);
     return {
-      token,
+      token: '',
       user: mapAdminUser(credential.user, profile),
     };
   } catch (error) {
+    if (error instanceof Error && error.message === ADMIN_APPROVAL_PENDING_MESSAGE) {
+      throw error;
+    }
     throw new Error(mapFirebaseAuthError(error, '관리자 회원가입에 실패했습니다.'));
   }
 }
@@ -379,6 +535,7 @@ export async function logInAdmin(email: string, password: string): Promise<Admin
       email: trimmedEmail,
       provider: 'password',
     });
+    assertApprovedAdminProfile(profile);
 
     const token = await credential.user.getIdToken();
     return {
@@ -386,6 +543,10 @@ export async function logInAdmin(email: string, password: string): Promise<Admin
       user: mapAdminUser(credential.user, profile),
     };
   } catch (error) {
+    if (isAdminApprovalPendingError(error)) {
+      await signOut(getFirebaseAuth());
+      throw error;
+    }
     throw new Error(mapFirebaseAuthError(error, '관리자 로그인에 실패했습니다.'));
   }
 }
@@ -408,6 +569,7 @@ export async function logInAdminWithGoogle(credential: string): Promise<AdminAut
     const profile = await ensureAdminProfile(user, {
       provider: 'google',
     });
+    assertApprovedAdminProfile(profile);
 
     const token = await user.getIdToken();
     return {
@@ -415,12 +577,55 @@ export async function logInAdminWithGoogle(credential: string): Promise<AdminAut
       user: mapAdminUser(user, profile),
     };
   } catch (error) {
+    if (isAdminApprovalPendingError(error)) {
+      await signOut(getFirebaseAuth());
+      throw error;
+    }
     throw new Error(mapFirebaseAuthError(error, 'Google 로그인에 실패했습니다.'));
   }
 }
 
-export async function fetchCurrentAdmin(_adminToken: string): Promise<AdminUser> {
-  return getSignedInAdminUser();
+export async function fetchCurrentAdmin(_adminToken: string, options?: { requireApproved?: boolean }): Promise<AdminUser> {
+  return getSignedInAdminUser(options);
+}
+
+export async function fetchAdminUsers(_adminToken: string): Promise<AdminUser[]> {
+  await getSignedInAdminUser();
+
+  const db = getFirebaseDb();
+  const snap = await getDocs(collection(db, COLLECTIONS.admins));
+
+  return snap.docs
+    .map((entry) => mapAdminProfileToUser(entry.id, entry.data() as AdminProfileDoc))
+    .sort((left, right) => String(left.createdAt).localeCompare(String(right.createdAt)));
+}
+
+export async function updateAdminApproval(adminId: string, approved: boolean, _adminToken: string): Promise<AdminUser> {
+  const currentAdmin = await getSignedInAdminUser();
+
+  if (!adminId) {
+    throw new Error('잘못된 관리자 ID입니다.');
+  }
+
+  if (currentAdmin.id === adminId && !approved) {
+    throw new Error('현재 로그인한 관리자는 승인 해제할 수 없습니다.');
+  }
+
+  const db = getFirebaseDb();
+  const ref = doc(db, COLLECTIONS.admins, adminId);
+  const snapshot = await getDoc(ref);
+
+  if (!snapshot.exists()) {
+    throw new Error('관리자 계정을 찾을 수 없습니다.');
+  }
+
+  await updateDoc(ref, {
+    approved,
+    updatedAt: nowIso(),
+  });
+
+  const updated = await getDoc(ref);
+  return mapAdminProfileToUser(updated.id, updated.data() as AdminProfileDoc);
 }
 
 export async function deleteAdminSession(_adminToken: string): Promise<void> {
@@ -470,21 +675,36 @@ export function normalizeSiteData(data: Record<string, unknown> | null | undefin
           defaultHeaderLabelMap.get(normalizedLabel) ||
           defaultHeaderMap.get(normalizedPath) ||
           (isLegacyResourceMenu ? defaultHeaderMap.get('/resources') : undefined);
+        const resolvedPath = String(item.path || canonicalItem?.path || '/').trim();
+        const rawChildren = Array.isArray(item.children)
+          ? item.children
+          : canonicalItem?.children || [];
 
-        if (!canonicalItem) {
-          return item;
-        }
+        const resolvedLabel = String(item.label || canonicalItem?.label || '').trim();
+        const normalizedChildren = rawChildren
+          .map((child, index) => ({
+            label: String(child?.label || canonicalItem?.children?.[index]?.label || '').trim(),
+            path: normalizeLegacyHeaderChildPath(
+              resolvedPath,
+              String(child?.path || '').trim(),
+              String(child?.label || ''),
+              canonicalItem?.children?.[index]?.path || '',
+            ),
+          }))
+          .filter((child) => child.label && child.path);
+        const finalChildren =
+          normalizeMenuPath(resolvedPath) === '/about'
+            ? normalizeAboutMenuChildren(resolvedLabel, normalizedChildren, canonicalItem?.children || [])
+            : normalizedChildren;
 
         return {
           ...item,
-          label: String(item.label || canonicalItem.label),
-          path: canonicalItem.path,
-          children: canonicalItem.children.map((child, index) => ({
-            label: String(item.children?.[index]?.label || child.label),
-            path: child.path,
-          })),
+          label: resolvedLabel,
+          path: resolvedPath,
+          children: finalChildren,
         };
       })
+      .filter((item) => item.label && item.path)
       .filter((item) => !isRemovedPagePath(item.path))
       .map((item) => ({
         ...item,
@@ -511,11 +731,14 @@ export function normalizeSiteData(data: Record<string, unknown> | null | undefin
     );
     const normalizedMemberCompanies = normalized.content.members.companies.map((item) => {
       const fallback = defaultMemberCompanyMap.get(String(item.name || '').trim());
+      const resolvedName = String(item.name || fallback?.name || '').trim();
 
       return {
         ...fallback,
         ...item,
+        slug: String((item as { slug?: string }).slug || fallback?.slug || createMemberCompanySlug(resolvedName)).trim(),
         updatedAt: String((item as { updatedAt?: string }).updatedAt || fallback?.updatedAt || '').trim(),
+        body: String((item as { body?: string }).body || fallback?.body || '').trim(),
       };
     });
     const rawContent = rawSiteData?.content;
@@ -721,11 +944,33 @@ export async function saveSiteData(item: SiteData, _adminToken: string): Promise
   return normalizedItem;
 }
 
+export async function uploadAdminFile(file: File, page: string, _adminToken: string): Promise<string> {
+  const user = await waitForAuthUser();
+  if (!user) {
+    throw new Error('관리자 인증이 필요합니다.');
+  }
+  const profile = await ensureAdminProfile(user);
+  assertApprovedAdminProfile(profile);
+
+  if (!file) {
+    throw new Error('업로드할 파일을 선택해 주세요.');
+  }
+
+  try {
+    const snapshot = await uploadAdminStorageObject(user, page, file, file.type || 'application/octet-stream');
+    return await getDownloadURL(snapshot.ref);
+  } catch (error) {
+    throw new Error(mapFirebaseStorageError(error, '파일 업로드에 실패했습니다.'));
+  }
+}
+
 export async function uploadAdminImage(file: File, page: string, _adminToken: string): Promise<string> {
   const user = await waitForAuthUser();
   if (!user) {
     throw new Error('관리자 인증이 필요합니다.');
   }
+  const profile = await ensureAdminProfile(user);
+  assertApprovedAdminProfile(profile);
 
   if (!file) {
     throw new Error('업로드할 이미지 파일을 선택해 주세요.');
@@ -735,14 +980,8 @@ export async function uploadAdminImage(file: File, page: string, _adminToken: st
     throw new Error('이미지 파일만 업로드할 수 있습니다.');
   }
 
-  const safeName = sanitizeFileName(file.name || 'image');
-  const storage = getFirebaseStorage();
-  const storageRef = ref(storage, `admin-assets/${user.uid}/${page}/${Date.now()}-${safeName}`);
-
   try {
-    const snapshot = await uploadBytes(storageRef, file, {
-      contentType: file.type,
-    });
+    const snapshot = await uploadAdminStorageObject(user, page, file, file.type);
     return getDownloadURL(snapshot.ref);
   } catch (error) {
     throw new Error(mapFirebaseStorageError(error, '이미지 업로드에 실패했습니다.'));
@@ -759,6 +998,8 @@ export async function deleteAdminImage(imageUrl: string, _adminToken: string): P
   if (!user) {
     throw new Error('관리자 인증이 필요합니다.');
   }
+  const profile = await ensureAdminProfile(user);
+  assertApprovedAdminProfile(profile);
 
   const isFirebaseStorageUrl =
     trimmedUrl.startsWith('gs://') ||

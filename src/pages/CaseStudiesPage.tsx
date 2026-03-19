@@ -1,23 +1,23 @@
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { ContentPagination } from '../components/ContentPagination';
 import { PageHeaderBlock, PageSectionBlock } from '../components/PublicPageTemplate';
 import { PageMeta } from '../components/PageMeta';
 import { useSiteContent } from '../context/SiteContentContext';
+import { getAdminToken } from '../lib/adminSession';
 import { formatMonthDay } from '../lib/contentUtils';
 import { fadeUp } from '../lib/motion';
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 9;
 
 export function CaseStudiesPage() {
   const { siteCopy, siteContent } = useSiteContent();
   const copy = siteCopy.cases;
   const content = siteContent.cases;
+  const isEditorLoggedIn = Boolean(getAdminToken());
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedCategory, setSelectedCategory] = useState<string>(content.allCategoryLabel);
-  const [searchInput, setSearchInput] = useState('');
-  const [keyword, setKeyword] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
 
   const categories = useMemo(
@@ -33,6 +33,7 @@ export function CaseStudiesPage() {
 
   const handleCategoryChange = (category: string) => {
     setSelectedCategory(category);
+    setCurrentPage(1);
     if (category === content.allCategoryLabel) {
       setSearchParams({});
       return;
@@ -42,56 +43,23 @@ export function CaseStudiesPage() {
   };
 
   const filteredEntries = useMemo(() => {
-    const normalizedKeyword = keyword.trim().toLowerCase();
-
     return content.entries.filter((item) => {
-      const matchesCategory =
-        selectedCategory === content.allCategoryLabel
-          ? true
-          : item.tags.includes(selectedCategory) || item.category === selectedCategory;
-
-      if (!matchesCategory) {
-        return false;
-      }
-
-      if (!normalizedKeyword) {
-        return true;
-      }
-
-      const haystack = [
-        item.title,
-        item.cardDescription,
-        item.category,
-        item.client,
-        item.period,
-        item.tags.join(' '),
-      ]
-        .join(' ')
-        .toLowerCase();
-
-      return haystack.includes(normalizedKeyword);
+      return selectedCategory === content.allCategoryLabel
+        ? true
+        : item.tags.includes(selectedCategory) || item.category === selectedCategory;
     });
-  }, [content.allCategoryLabel, content.entries, keyword, selectedCategory]);
+  }, [content.allCategoryLabel, content.entries, selectedCategory]);
 
   const totalPages = Math.max(1, Math.ceil(filteredEntries.length / PAGE_SIZE));
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [keyword, selectedCategory]);
-
-  useEffect(() => {
-    setCurrentPage((page) => Math.min(page, totalPages));
-  }, [totalPages]);
+  }, [selectedCategory]);
 
   const paginatedEntries = filteredEntries.slice(
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE,
   );
-
-  const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setKeyword(searchInput);
-  };
 
   return (
     <>
@@ -101,43 +69,21 @@ export function CaseStudiesPage() {
         description={copy.introDescription}
       />
       <PageSectionBlock id="portfolio-list">
-        <motion.article {...fadeUp} className="members-search-panel">
-          <form className="members-search-form" onSubmit={handleSearchSubmit}>
-            <div className="members-search-form__inner">
-              <label className="members-search-form__field">
-                <span className="sr-only">카테고리 선택</span>
-                <select value={selectedCategory} onChange={(event) => handleCategoryChange(event.target.value)}>
-                  {categories.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="members-search-form__field members-search-form__field--search">
-                <span className="sr-only">운영사례 검색</span>
-                <input
-                  type="search"
-                  value={searchInput}
-                  onChange={(event) => setSearchInput(event.target.value)}
-                  placeholder={content.searchPlaceholder}
-                />
-              </label>
-
-              <button type="submit" className="members-search-form__submit">
-                {content.searchButtonLabel}
-              </button>
-            </div>
-          </form>
-        </motion.article>
-
-        <div className="members-list-toolbar">
-          <div className="members-list-toolbar__summary">
-            <span>{content.totalLabel} <strong>{filteredEntries.length}</strong>건</span>
-            <span className="members-list-toolbar__divider">|</span>
-            <span>{content.currentPageLabel} <strong>{currentPage}/{totalPages}</strong></span>
-          </div>
+        {/* 새로운 격자형 카테고리 탭 */}
+        <div className="category-tab-container">
+          <ul className="category-tab-list">
+            {categories.map((item) => (
+              <li key={item} className="category-tab-item">
+                <button
+                  type="button"
+                  className={selectedCategory === item ? 'category-tab-button is-active' : 'category-tab-button'}
+                  onClick={() => handleCategoryChange(item)}
+                >
+                  {item}
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
 
         {paginatedEntries.length === 0 ? (
@@ -160,11 +106,6 @@ export function CaseStudiesPage() {
                 </Link>
                 <div className="member-card__content">
                   <h3 className="member-card__title">{item.title}</h3>
-                  <p className="member-card__desc">
-                    {item.category} · {item.client}
-                    <br />
-                    {item.cardDescription}
-                  </p>
                   <time className="member-card__date">{formatMonthDay(item.updatedAt || item.period)}</time>
                 </div>
               </motion.article>
@@ -172,54 +113,18 @@ export function CaseStudiesPage() {
           </div>
         )}
 
-        {totalPages > 1 ? (
-          <div className="members-pagination">
-            <button
-              type="button"
-              className="members-pagination__arrow"
-              onClick={() => setCurrentPage(1)}
-              disabled={currentPage === 1}
-            >
-              <ChevronsLeft size={18} />
-            </button>
-            <button
-              type="button"
-              className="members-pagination__arrow"
-              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-              disabled={currentPage === 1}
-            >
-              <ChevronLeft size={18} />
-            </button>
-
-            {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
-              <button
-                key={page}
-                type="button"
-                className={page === currentPage ? 'members-pagination__button is-active' : 'members-pagination__button'}
-                onClick={() => setCurrentPage(page)}
-              >
-                {page}
-              </button>
-            ))}
-
-            <button
-              type="button"
-              className="members-pagination__arrow"
-              onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-              disabled={currentPage === totalPages}
-            >
-              <ChevronRight size={18} />
-            </button>
-            <button
-              type="button"
-              className="members-pagination__arrow"
-              onClick={() => setCurrentPage(totalPages)}
-              disabled={currentPage === totalPages}
-            >
-              <ChevronsRight size={18} />
-            </button>
+        <div className="content-list-footer">
+          <div className="content-list-footer__pagination">
+            <ContentPagination currentPage={currentPage} totalPages={totalPages} onChange={setCurrentPage} />
           </div>
-        ) : null}
+          {isEditorLoggedIn ? (
+            <Link to="/cases/new" className="button button--primary content-list-footer__write-button">
+              새 운영사례 등록
+            </Link>
+          ) : (
+            <div />
+          )}
+        </div>
       </PageSectionBlock>
     </>
   );

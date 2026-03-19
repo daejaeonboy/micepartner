@@ -24,6 +24,8 @@ type PageHeaderBlockProps = {
   actionTo?: string;
   action?: ReactNode;
   align?: 'center' | 'left';
+  width?: 'default' | 'content';
+  style?: React.CSSProperties;
 };
 
 type PageOwnerNoteBlockProps = {
@@ -91,9 +93,27 @@ export function PageSectionBlock({
   );
 }
 
-export function PageHeaderBlock({ title, description, actionLabel, actionTo, action, align = 'center' }: PageHeaderBlockProps) {
+export function PageHeaderBlock({
+  title,
+  description,
+  actionLabel,
+  actionTo,
+  action,
+  align = 'center',
+  width = 'default',
+  style,
+}: PageHeaderBlockProps) {
+  const className = [
+    'board-container',
+    'board-header',
+    align === 'left' ? 'is-left' : '',
+    width === 'content' ? 'board-header--content-width' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
-    <header className={`board-container board-header ${align === 'left' ? 'is-left' : ''}`} style={{ paddingBottom: 0 }}>
+    <header className={className} style={{ paddingBottom: 0, ...style }}>
       <h1>{title}</h1>
       <p>{description}</p>
       {action ? action : actionLabel && actionTo ? <a href={actionTo} className="resource-news-page__jump">{actionLabel}</a> : null}

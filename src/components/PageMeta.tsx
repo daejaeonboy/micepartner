@@ -7,7 +7,7 @@ type PageMetaProps = {
 
 const defaultTitle = '마이스파트너 | MICE 운영 파트너';
 const defaultDescription = '마이스파트너의 회사 소개, 서비스, 포트폴리오, 자료실, 문의 구조를 담은 기업 홈페이지입니다.';
-const defaultImage = '/logo.png';
+const defaultImage = 'https://micepartner.web.app/logocard.jpg';
 
 export function PageMeta({ title, description }: PageMetaProps) {
   useEffect(() => {

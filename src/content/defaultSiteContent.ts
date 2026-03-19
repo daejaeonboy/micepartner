@@ -303,6 +303,9 @@ export const defaultSiteContent: SitePageContent = {
     processEyebrow: 'Process',
     heroImageUrl:
       'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=2000&q=80',
+    identityImageUrl: '',
+    strengthImageUrl: '',
+    processImageUrl: '',
     messageTitle: '현장의 가치를 연결하는 진정한 파트너가 되겠습니다.',
     messageBody:
       '마이스파트너는 단순한 대행사가 아닙니다. 행사의 본질을 이해하고, 주최자의 고민을 함께 해결하며, 참가자에게는 최고의 경험을 선사하는 전문 운영 파트너입니다.\n\n우리는 대전·충청 지역의 MICE 생태계에 대한 깊은 이해를 바탕으로 실무에서 즉시 작동하는 운영 표준을 만들어가고 있습니다.',
@@ -405,6 +408,7 @@ export const defaultSiteContent: SitePageContent = {
     emptyStateDescription: '검색어 또는 분과 조건을 다시 확인해 주세요.',
     companies: [
       {
+        slug: '대전컨벤션센터-dcc',
         name: '대전컨벤션센터(DCC)',
         category: '컨벤션센터',
         secondaryCategory: '전시장',
@@ -414,6 +418,7 @@ export const defaultSiteContent: SitePageContent = {
         updatedAt: '2026.03.12',
       },
       {
+        slug: '호텔-icc',
         name: '호텔 ICC',
         category: '호텔',
         secondaryCategory: '연회장',
@@ -423,6 +428,7 @@ export const defaultSiteContent: SitePageContent = {
         updatedAt: '2026.03.12',
       },
       {
+        slug: 'kt인재개발원',
         name: 'KT인재개발원',
         category: '교육·연수',
         secondaryCategory: '연수원',
@@ -440,9 +446,9 @@ export const defaultSiteContent: SitePageContent = {
         path: '/about',
         imageUrl: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80',
         children: [
-          { label: '브랜드 소개', path: '/about#about-identity' },
-          { label: '강점 소개', path: '/about#about-strengths' },
-          { label: '운영 프로세스', path: '/about#about-process' },
+          { label: '회사 개요', path: '/about/overview' },
+          { label: '사업영역', path: '/about/business' },
+          { label: '운영 프로세스', path: '/about/process' },
         ],
       },
       {

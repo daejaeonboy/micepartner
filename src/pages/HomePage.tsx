@@ -8,8 +8,9 @@ import {
   useRef,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 import { PageMeta } from '../components/PageMeta';
+import { SectionHeading } from '../components/SectionHeading';
 import { useSiteContent } from '../context/SiteContentContext';
 import { fadeUp } from '../lib/motion';
 
@@ -625,7 +626,7 @@ function Section2Slider({ slides }: { slides: { img: string; title: string; desc
         style={{
           position: 'relative',
           overflow: 'hidden',
-          borderRadius: 'var(--radius)',
+          borderRadius: 0,
           userSelect: 'none',
           WebkitUserSelect: 'none',
         }}
@@ -645,7 +646,7 @@ function Section2Slider({ slides }: { slides: { img: string; title: string; desc
         >
           {slides.map((slide, i) => (
             <div key={i} style={{ flex: '0 0 100%', minWidth: '100%' }}>
-              <div style={{ aspectRatio: '21 / 9', overflow: 'hidden', position: 'relative' }}>
+              <div className="home-slider__aspect" style={{ overflow: 'hidden', position: 'relative' }}>
                 <img
                   src={slide.img}
                   alt={slide.title}
@@ -653,19 +654,22 @@ function Section2Slider({ slides }: { slides: { img: string; title: string; desc
                   style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }}
                 />
                 <div
+                  className="home-slider__overlay-content"
                   style={{
                     position: 'absolute',
                     inset: 0,
-                    display: 'grid',
-                    alignContent: 'end',
-                    gap: '10px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'flex-end',
                     padding: '40px',
                     color: '#fff',
                     background: 'linear-gradient(0deg, rgba(0,0,0,0.7), rgba(0,0,0,0.08) 56%, rgba(0,0,0,0.02))',
                   }}
                 >
-                  <strong style={{ fontSize: 'clamp(24px, 3vw, 36px)', lineHeight: 1.15 }}>{slide.title}</strong>
-                  <p style={{ margin: 0, maxWidth: '720px', fontSize: '15px', lineHeight: 1.8, opacity: 0.86 }}>{slide.desc}</p>
+                  <div style={{ display: 'grid', gap: '10px' }}>
+                    <strong style={{ fontSize: 'clamp(24px, 3vw, 36px)', lineHeight: 1.15 }}>{slide.title}</strong>
+                    <p className="home-slider__desc-text" style={{ margin: 0, maxWidth: '720px', fontSize: '15px', lineHeight: 1.8, opacity: 0.86 }}>{slide.desc}</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -673,6 +677,7 @@ function Section2Slider({ slides }: { slides: { img: string; title: string; desc
         </div>
         {/* Dots inside image */}
         <div
+          className="home-slider__dots-container"
           style={{
             position: 'absolute',
             bottom: '20px',
@@ -691,7 +696,7 @@ function Section2Slider({ slides }: { slides: { img: string; title: string; desc
               style={{
                 width: i === current ? '24px' : '8px',
                 height: '8px',
-                borderRadius: i === current ? '4px' : '50%',
+                borderRadius: 0,
                 background: i === current ? 'var(--brand)' : 'rgba(255,255,255,0.6)',
                 border: 'none',
                 cursor: 'pointer',
@@ -706,6 +711,75 @@ function Section2Slider({ slides }: { slides: { img: string; title: string; desc
       <div className="home-slider__controls">
         <button type="button" className="home-slider__arrow" onClick={prev}><ArrowLeft size={20} /></button>
         <button type="button" className="home-slider__arrow" onClick={next}><ArrowRight size={20} /></button>
+      </div>
+    </div>
+  );
+}
+
+function PortfolioSlider({ items }: { items: { slug: string; title: string; coverImageUrl?: string }[] }) {
+  const { siteContent } = useSiteContent();
+  const primaryHeroImageUrl = siteContent.home.heroImageUrl;
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragRef = useRef({
+    pointerId: -1,
+    startX: 0,
+    startScrollLeft: 0,
+    dragging: false,
+  });
+
+  const handlePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const track = trackRef.current;
+    if (!track) return;
+    
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startScrollLeft: track.scrollLeft,
+      dragging: true,
+    };
+    track.setPointerCapture(event.pointerId);
+    setIsDragging(true);
+  }, []);
+
+  const handlePointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current.dragging) return;
+    const track = trackRef.current;
+    if (!track) return;
+    
+    const deltaX = event.clientX - dragRef.current.startX;
+    track.scrollLeft = dragRef.current.startScrollLeft - deltaX;
+  }, []);
+
+  const handlePointerEnd = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current.dragging) return;
+    dragRef.current.dragging = false;
+    setIsDragging(false);
+    if (trackRef.current) {
+      trackRef.current.releasePointerCapture(event.pointerId);
+    }
+  }, []);
+
+  return (
+    <div className="portfolio-slider-container">
+      <div 
+        ref={trackRef}
+        className={`portfolio-slider${isDragging ? ' is-dragging' : ''}`}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerEnd}
+        onPointerCancel={handlePointerEnd}
+      >
+        {items.map((item, index) => (
+          <div key={item.slug} className="portfolio-slider__item">
+            <div className="portfolio-slider__card">
+              <img src={item.coverImageUrl || primaryHeroImageUrl} alt={item.title || `포트폴리오 ${index + 1}`} draggable={false} />
+              <div className="portfolio-slider__overlay">
+                <strong>{item.title}</strong>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -802,49 +876,101 @@ export function HomePage() {
     ),
     positioning: (
       <section className="home-section">
-        <div className="home-section__intro home-section__intro--center">
-          <h2>{copy.positioningTitle}</h2>
+        <div className="home-section__intro" style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between', 
+          gap: '24px',
+          width: '100%'
+        }}>
+          <h2 style={{ 
+            fontSize: 'clamp(30px, 4vw, 44px)', 
+            fontWeight: 400, 
+            letterSpacing: '-0.04em',
+            margin: 0,
+            color: 'var(--text-strong)'
+          }}>
+            {copy.positioningTitle || '대전 MICE'}
+          </h2>
+          <NavLink to="/services" style={{ 
+            display: 'inline-flex', 
+            alignItems: 'center', 
+            gap: '8px', 
+            color: '#444444', 
+            fontSize: '16px', 
+            fontWeight: 500,
+            whiteSpace: 'nowrap'
+          }}>
+            자세히 보기 <ArrowRight size={16} />
+          </NavLink>
         </div>
 
         <Section2Slider slides={positioningSlides} />
-
-        <div style={{ textAlign: 'center', marginTop: '24px' }}>
-          <p className="home-section__summary" style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
-            {copy.positioningDescription}
-          </p>
-        </div>
       </section>
     ),
     'portfolio-preview': (
       <section className="home-section">
-        <div className="home-section__intro home-section__intro--split">
-          <div className="home-section__intro-left">
-            <h2>{copy.portfolioPreviewTitle}</h2>
-            <Link to={home.secondaryCtaHref} className="home-outline-button">
-              {home.secondaryCtaLabel}
-            </Link>
-          </div>
-          <div className="home-section__summary" style={{ alignSelf: 'flex-start' }}>
-            <p>{copy.portfolioPreviewDescription}</p>
-          </div>
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between', 
+          gap: '24px',
+          width: '100%'
+        }}>
+          <h2 style={{ 
+            fontSize: 'clamp(30px, 4vw, 44px)', 
+            fontWeight: 400, 
+            letterSpacing: '-0.04em',
+            margin: 0,
+            color: 'var(--text-strong)'
+          }}>
+            {copy.portfolioPreviewTitle}
+          </h2>
+          <NavLink to={home.secondaryCtaHref} style={{ 
+            display: 'inline-flex', 
+            alignItems: 'center', 
+            gap: '8px', 
+            color: '#444444', 
+            fontSize: '16px', 
+            fontWeight: 500,
+            whiteSpace: 'nowrap'
+          }}>
+            자세히 보기 <ArrowRight size={16} />
+          </NavLink>
         </div>
 
-        <div className="home-grid-gallery">
-              {galleryCases.map((item, index) => (
-            <div key={item.slug} className="home-grid-gallery__item">
-              <img src={item.coverImageUrl || primaryHeroImageUrl} alt={item.title || `포트폴리오 ${index + 1}`} />
-            </div>
-          ))}
-        </div>
+        <PortfolioSlider items={galleryCases} />
       </section>
     ),
     'resources-preview': (
       <section className="home-section">
-        <div className="home-section__intro">
-          <h2>{copy.resourcesPreviewTitle}</h2>
-          <div className="home-section__summary">
-            <p>{copy.resourcesPreviewDescription}</p>
-          </div>
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between', 
+          gap: '24px',
+          width: '100%'
+        }}>
+          <h2 style={{ 
+            fontSize: 'clamp(30px, 4vw, 44px)', 
+            fontWeight: 400, 
+            letterSpacing: '-0.04em',
+            margin: 0,
+            color: 'var(--text-strong)'
+          }}>
+            {copy.resourcesPreviewTitle}
+          </h2>
+          <NavLink to="/resources" style={{ 
+            display: 'inline-flex', 
+            alignItems: 'center', 
+            gap: '8px', 
+            color: '#444444', 
+            fontSize: '16px', 
+            fontWeight: 500,
+            whiteSpace: 'nowrap'
+          }}>
+            자세히 보기 <ArrowRight size={16} />
+          </NavLink>
         </div>
 
         <div className="home-review-grid">
@@ -855,6 +981,9 @@ export function HomePage() {
               </div>
               <div className="home-review-card__body">
                 <h4>{resource.title}</h4>
+                {resource.updatedAt && (
+                  <span className="home-review-card__date">{resource.updatedAt.replaceAll('-', '. ')}</span>
+                )}
                 <p>{resource.description}</p>
               </div>
             </div>
@@ -864,11 +993,33 @@ export function HomePage() {
     ),
     partners: (
       <section className="home-section">
-        <div className="home-section__intro home-section__intro--center">
-          <h2>{copy.processTitle}</h2>
-          <div className="home-section__summary">
-            <p>{copy.processDescription}</p>
-          </div>
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between', 
+          gap: '24px',
+          width: '100%'
+        }}>
+          <h2 style={{ 
+            fontSize: 'clamp(30px, 4vw, 44px)', 
+            fontWeight: 400, 
+            letterSpacing: '-0.04em',
+            margin: 0,
+            color: 'var(--text-strong)'
+          }}>
+            {copy.processTitle}
+          </h2>
+          <NavLink to="/members" style={{ 
+            display: 'inline-flex', 
+            alignItems: 'center', 
+            gap: '8px', 
+            color: '#444444', 
+            fontSize: '16px', 
+            fontWeight: 500,
+            whiteSpace: 'nowrap'
+          }}>
+            자세히 보기 <ArrowRight size={16} />
+          </NavLink>
         </div>
 
         <div className="home-logo-marquee-group">
@@ -904,19 +1055,12 @@ export function HomePage() {
     ),
     cta: (
       <section className="home-section home-section--last">
-        <motion.article {...fadeUp} className="home-cta-banner home-cta-banner--centered">
-          <img src={ctaImageUrl} alt="상담 문의 배너" className="home-cta-banner__image" />
-          <div className="home-cta-banner__overlay">
-            <h2 style={{ fontSize: '32px', fontWeight: 600 }}>{copy.ctaTitle}</h2>
-            <p style={{ fontSize: '14px', letterSpacing: '0.02em', opacity: 0.9 }}>{copy.ctaDescription}</p>
-            <div className="home-hero__actions" style={{ marginTop: '24px' }}>
-              <Link to="/contact" className="button button--ghost" style={{ minWidth: '160px', borderColor: 'rgba(255,255,255,0.3)' }}>
-                {home.ctaButtonLabel}
-              </Link>
-              <Link to={home.secondaryCtaHref} className="button button--ghost" style={{ minWidth: '160px', borderColor: 'rgba(255,255,255,0.3)' }}>
-                {home.secondaryCtaLabel}
-              </Link>
-            </div>
+        <motion.article {...fadeUp} className="home-simple-cta">
+          <h2>고객센터</h2>
+          <div className="home-simple-cta__actions">
+            <Link to="/contact" className="home-simple-cta__button">
+              1:1 문의하기
+            </Link>
           </div>
         </motion.article>
       </section>

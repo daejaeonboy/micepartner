@@ -1,61 +1,114 @@
+import { Link, Navigate, useLocation } from 'react-router-dom';
+import { Home, ChevronRight, ChevronDown } from 'lucide-react';
 import { PageMeta } from '../components/PageMeta';
 import { useSiteContent } from '../context/SiteContentContext';
-
-function splitParagraphs(value: string) {
-  return String(value || '')
-    .split('\n\n')
-    .map((paragraph) => paragraph.trim())
-    .filter(Boolean);
-}
+import { getAdminToken } from '../lib/adminSession';
+import { getAboutResolvedPage, getAboutSidebarItems, normalizeMenuPath } from '../lib/aboutConfig';
+import { normalizeRichTextHtml, stripHtmlTags } from '../lib/richText';
 
 export function AboutPage() {
+  const location = useLocation();
   const { siteCopy, siteContent } = useSiteContent();
+  const isEditorLoggedIn = Boolean(getAdminToken());
   const copy = siteCopy.about;
   const content = siteContent.about;
-  const messageParagraphs = splitParagraphs(content.messageBody);
+  const headerItems = siteContent.menus.headerItems;
+  const aboutMenu = headerItems.find((item) => normalizeMenuPath(item.path) === '/about');
+  const sidebarItems = getAboutSidebarItems(headerItems);
+  const currentPage = getAboutResolvedPage(location.pathname, headerItems, copy, content);
+
+  if (!currentPage) {
+    return <Navigate to="/about" replace />;
+  }
+
+  const isNavItemActive = (path: string, index: number) => {
+    const normalizedPath = normalizeMenuPath(path);
+    return location.pathname === normalizedPath && (normalizedPath !== '/about' || index === 0);
+  };
+  const pageTitle = String(currentPage.title || '').trim();
+  const headingText = pageTitle || (currentPage.key === 'intro' ? '' : currentPage.label);
 
   return (
     <>
-      <PageMeta title="회사소개" description={copy.introDescription} />
-      
+      <PageMeta
+        title={`${currentPage.label} | ${aboutMenu?.label || '회사 소개'}`}
+        description={stripHtmlTags(currentPage.description)}
+      />
+
       <section className="visual-page-header">
-        {content.heroImageUrl ? (
-          <img src={content.heroImageUrl} alt="Company Header Visual" />
-        ) : null}
+        {currentPage.imageUrl ? (
+          <img src={currentPage.imageUrl} alt={`${currentPage.label} 배경`} />
+        ) : (
+          <div style={{ background: '#222', width: '100%', height: '100%' }} />
+        )}
         <div className="visual-page-header__overlay">
-          <h1>Company</h1>
+          <h1>{aboutMenu?.label || '회사 소개'}</h1>
         </div>
       </section>
 
-      <div className="about-page-content">
-        <section id="intro" className="about-text-section">
-          <p className="section-eyebrow">회사 소개</p>
-          <h2>{copy.introTitle}</h2>
-          <p>{copy.introDescription}</p>
-        </section>
-
-        <section id="about-identity" className="about-text-section">
-          <p className="section-eyebrow">운영 기준</p>
-          <h2>마이스파트너는 실무에서 바로 적용할 수 있는 운영 기준을 먼저 정리합니다.</h2>
-          <div className="about-plain-body" style={{ padding: 0 }}>
-            {messageParagraphs.map((paragraph, idx) => (
-              <p key={idx} style={{ marginBottom: '16px' }}>{paragraph}</p>
-            ))}
+      <div className="about-breadcrumb-bar">
+        <div className="about-breadcrumb-bar__inner">
+          <Link to="/" className="breadcrumb-home-link">
+            <Home size={18} />
+          </Link>
+          
+          <div className="breadcrumb-select">
+            <span className="breadcrumb-select__label">{aboutMenu?.label || '회사 소개'}</span>
+            <ChevronDown size={14} className="breadcrumb-select__icon" />
+            <div className="breadcrumb-dropdown">
+              {headerItems.map((item) => (
+                <Link 
+                  key={item.path} 
+                  to={item.path} 
+                  className={`breadcrumb-dropdown__item ${normalizeMenuPath(item.path) === '/about' ? 'is-active' : ''}`}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </div>
           </div>
-        </section>
 
-        <section id="about-strengths" className="about-text-section">
-          <p className="section-eyebrow">브랜드 철학</p>
-          <h2>{copy.strengthTitle}</h2>
-          <div className="about-plain-body" style={{ padding: 0 }}>
-            {content.highlights.map((item) => (
-              <div key={item.title} className="about-plain-text-block" style={{ marginBottom: '24px' }}>
-                <h3 className="about-plain-subtitle" style={{ fontSize: '24px', marginBottom: '8px' }}>{item.title}</h3>
-                <p>{item.description}</p>
+          <div className="breadcrumb-select">
+            <span className="breadcrumb-select__label">{currentPage.label}</span>
+            <ChevronDown size={14} className="breadcrumb-select__icon" />
+            <div className="breadcrumb-dropdown">
+              {sidebarItems.map((item, index) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`breadcrumb-dropdown__item ${isNavItemActive(item.path, index) ? 'is-active' : ''}`}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="about-layout-container">
+        <main className="about-layout-content">
+          <section className="about-text-section">
+            {currentPage.label ? <p className="section-eyebrow">{currentPage.label}</p> : null}
+            {headingText ? <h2>{headingText}</h2> : null}
+            <div
+              className="about-rich-content"
+              dangerouslySetInnerHTML={{ __html: normalizeRichTextHtml(currentPage.description) }}
+            />
+            {currentPage.key !== 'intro' && currentPage.imageUrl ? (
+              <div className="about-section-image">
+                <img src={currentPage.imageUrl} alt={currentPage.title || currentPage.label} />
               </div>
-            ))}
-          </div>
-        </section>
+            ) : null}
+            {isEditorLoggedIn ? (
+              <div className="about-page-actions">
+                <Link to={currentPage.editPath} className="button button--light notice-detail-page__edit-button">
+                  {currentPage.label} 수정하기
+                </Link>
+              </div>
+            ) : null}
+          </section>
+        </main>
       </div>
     </>
   );

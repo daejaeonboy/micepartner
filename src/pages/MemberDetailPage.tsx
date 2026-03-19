@@ -1,26 +1,75 @@
-import { ChevronLeft, Link2 } from 'lucide-react';
-import { Navigate, Link, useParams } from 'react-router-dom';
+import { ChevronLeft, MoreVertical, Pencil, Trash2 } from 'lucide-react';
+import { Navigate, Link, useParams, useNavigate } from 'react-router-dom';
+import { useState, useRef, useEffect } from 'react';
 import { PageMeta } from '../components/PageMeta';
 import { useSiteContent } from '../context/SiteContentContext';
-import { createMemberCompanySlug, formatIsoLikeDate, splitParagraphs } from '../lib/contentUtils';
+import { getAdminToken } from '../lib/adminSession';
+import { saveSiteData } from '../lib/api';
+import { formatIsoLikeDate, resolveMemberCompanySlug, splitParagraphs } from '../lib/contentUtils';
 
 export function MemberDetailPage() {
   const { slug } = useParams();
-  const { siteContent } = useSiteContent();
+  const navigate = useNavigate();
+  const { siteData, updateSiteData, siteContent } = useSiteContent();
+  const isEditorLoggedIn = Boolean(getAdminToken());
+  const adminToken = getAdminToken();
   const company = siteContent.members.companies.find(
-    (item) => createMemberCompanySlug(item.name) === String(slug || ''),
+    (item) => resolveMemberCompanySlug(item) === String(slug || ''),
   );
+
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   if (!company) {
     return <Navigate to="/members" replace />;
   }
 
+  const handleDelete = async () => {
+    if (!adminToken) return;
+    
+    const confirmed = window.confirm('이 협력업체를 정말 삭제할까요? 삭제 후에는 복구할 수 없습니다.');
+    if (!confirmed) return;
+
+    try {
+      const nextCompanies = siteData.content.members.companies.filter((item) => resolveMemberCompanySlug(item) !== resolveMemberCompanySlug(company));
+      const saved = await saveSiteData(
+        {
+          ...siteData,
+          content: {
+            ...siteData.content,
+            members: {
+              ...siteData.content.members,
+              companies: nextCompanies,
+            },
+          },
+        },
+        adminToken,
+      );
+
+      updateSiteData(saved);
+      navigate('/members', { replace: true });
+    } catch (e) {
+      alert('삭제 중 오류가 발생했습니다.');
+    }
+  };
+
   const paragraphs = splitParagraphs(
-    [
-      `${company.name}는 ${company.category}${company.secondaryCategory ? ` · ${company.secondaryCategory}` : ''} 분야의 협력업체입니다.`,
-      `${company.address}에서 운영 중이며, 행사 운영과 제휴 협업 시 필요한 현장 인프라와 실무 커뮤니케이션을 지원합니다.`,
-      `문의가 필요한 경우 ${company.phone}로 바로 연결할 수 있습니다.`,
-    ].join('\n\n'),
+    company.body ||
+      [
+        `${company.name}는 ${company.category}${company.secondaryCategory ? ` · ${company.secondaryCategory}` : ''} 분야의 협력업체입니다.`,
+        `${company.address}에서 운영 중이며, 행사 운영과 제휴 협업 시 필요한 현장 인프라와 실무 커뮤니케이션을 지원합니다.`,
+        `문의가 필요한 경우 ${company.phone}로 바로 연결할 수 있습니다.`,
+      ].join('\n\n'),
   );
   const detailDate = formatIsoLikeDate(company.updatedAt);
 
@@ -34,40 +83,116 @@ export function MemberDetailPage() {
             협력업체 목록으로
           </Link>
 
-          <header className="notice-detail-page__header">
-            <h1>{company.name}</h1>
-            {detailDate ? <p>{detailDate}</p> : null}
+          <header className="notice-detail-page__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', paddingBottom: '20px', position: 'relative' }}>
+            <div style={{ display: 'grid', gap: '8px' }}>
+              <h1 style={{ margin: 0 }}>{company.name}</h1>
+              {detailDate ? <p style={{ margin: 0 }}>{detailDate}</p> : null}
+            </div>
+            
+            {isEditorLoggedIn ? (
+              <div ref={menuRef} style={{ position: 'relative' }}>
+                <button 
+                  onClick={() => setShowMenu(!showMenu)}
+                  className="button button--light" 
+                  style={{ 
+                    width: '42px', 
+                    height: '42px', 
+                    minWidth: '42px', 
+                    padding: 0, 
+                    borderRadius: '0px', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    color: '#666',
+                    border: '1px solid #eee',
+                    backgroundColor: '#fff'
+                  }}
+                >
+                  <MoreVertical size={20} />
+                </button>
+
+                {showMenu && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    right: 0,
+                    marginTop: '8px',
+                    width: '160px',
+                    backgroundColor: '#fff',
+                    border: '1px solid #eee',
+                    borderRadius: '0px',
+                    boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+                    zIndex: 50,
+                    overflow: 'hidden'
+                  }}>
+                    <Link 
+                      to={`/members/${resolveMemberCompanySlug(company)}/edit`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        padding: '12px 16px',
+                        fontSize: '14px',
+                        color: '#333',
+                        transition: 'background 0.2s',
+                        borderBottom: '1px solid #f5f5f5'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      <Pencil size={14} /> 수정하기
+                    </Link>
+                    <button 
+                      onClick={handleDelete}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        width: '100%',
+                        padding: '12px 16px',
+                        fontSize: '14px',
+                        color: '#e11d48',
+                        background: 'none',
+                        border: 'none',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        transition: 'background 0.2s'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fff1f2'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      <Trash2 size={14} /> 삭제하기
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : null}
           </header>
 
           <article className="notice-detail-card">
             <div className="notice-detail-card__body">
-              {paragraphs.map((paragraph) => (
-                <p key={paragraph}>{paragraph}</p>
-              ))}
-            </div>
+              {/* 로고/대표 이미지를 본문 최상단에 배치 */}
+              {company.logoUrl && (
+                <div className="notice-detail-card__inline-image" style={{ marginBottom: '40px' }}>
+                  <img 
+                    src={company.logoUrl} 
+                    alt={company.name} 
+                    style={{ width: '100%', display: 'block', border: '1px solid #f1f5f9' }} 
+                  />
+                </div>
+              )}
 
-            <div className="notice-detail-card__attachments">
-              <strong>관련 정보</strong>
-              <div className="notice-detail-card__attachment-list">
-                <div className="notice-detail-card__attachment notice-detail-card__attachment--static">
-                  <Link2 size={16} />
-                  {company.category}
-                </div>
-                {company.secondaryCategory ? (
-                  <div className="notice-detail-card__attachment notice-detail-card__attachment--static">
-                    <Link2 size={16} />
-                    {company.secondaryCategory}
-                  </div>
-                ) : null}
-                <div className="notice-detail-card__attachment notice-detail-card__attachment--static">
-                  <Link2 size={16} />
-                  {company.address}
-                </div>
-                <a href={`tel:${company.phone.replace(/[^\d+]/g, '')}`} className="notice-detail-card__attachment">
-                  <Link2 size={16} />
-                  {company.phone}
-                </a>
-              </div>
+              {paragraphs.map((paragraph, idx) => {
+                const imgMatch = paragraph.match(/^!\[(.*?)\]\((.*?)\)$/);
+                if (imgMatch) {
+                  return (
+                    <div key={idx} className="notice-detail-card__inline-image">
+                      <img src={imgMatch[2]} alt={imgMatch[1]} style={{ width: '100%', margin: '20px 0' }} />
+                    </div>
+                  );
+                }
+                return <p key={idx}>{paragraph}</p>;
+              })}
             </div>
           </article>
         </div>

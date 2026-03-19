@@ -6,6 +6,7 @@ export type AdminUser = {
   email: string;
   provider: AdminProvider;
   createdAt: string;
+  approved: boolean;
 };
 
 export type AdminAuthResponse = {

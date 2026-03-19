@@ -1,22 +1,22 @@
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { motion } from 'motion/react';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { ContentPagination } from '../components/ContentPagination';
 import { PageHeaderBlock, PageSectionBlock } from '../components/PublicPageTemplate';
 import { PageMeta } from '../components/PageMeta';
 import { useSiteContent } from '../context/SiteContentContext';
-import { createMemberCompanySlug, formatMonthDay } from '../lib/contentUtils';
+import { getAdminToken } from '../lib/adminSession';
+import { formatMonthDay, resolveMemberCompanySlug } from '../lib/contentUtils';
 import { fadeUp } from '../lib/motion';
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 12;
 
 export function MembersPage() {
   const { siteCopy, siteContent } = useSiteContent();
   const copy = siteCopy.members;
   const content = siteContent.members;
+  const isEditorLoggedIn = Boolean(getAdminToken());
   const [selectedCategory, setSelectedCategory] = useState(content.filterAllLabel);
-  const [searchInput, setSearchInput] = useState('');
-  const [keyword, setKeyword] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
 
   const categories = useMemo(
@@ -25,49 +25,21 @@ export function MembersPage() {
   );
 
   const filteredCompanies = useMemo(() => {
-    const normalizedKeyword = keyword.trim().toLowerCase();
-
     return content.companies.filter((company) => {
-      const matchesCategory =
-        selectedCategory === content.filterAllLabel ? true : company.category === selectedCategory;
-
-      if (!normalizedKeyword) {
-        return matchesCategory;
-      }
-
-      const haystack = [
-        company.name,
-        company.category,
-        company.secondaryCategory,
-        company.address,
-        company.phone,
-      ]
-        .join(' ')
-        .toLowerCase();
-
-      return matchesCategory && haystack.includes(normalizedKeyword);
+      return selectedCategory === content.filterAllLabel ? true : company.category === selectedCategory;
     });
-  }, [content.companies, content.filterAllLabel, keyword, selectedCategory]);
+  }, [content.companies, content.filterAllLabel, selectedCategory]);
 
   const totalPages = Math.max(1, Math.ceil(filteredCompanies.length / PAGE_SIZE));
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [keyword, selectedCategory]);
-
-  useEffect(() => {
-    setCurrentPage((page) => Math.min(page, totalPages));
-  }, [totalPages]);
+  }, [selectedCategory]);
 
   const paginatedCompanies = filteredCompanies.slice(
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE,
   );
-
-  const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setKeyword(searchInput);
-  };
 
   return (
     <>
@@ -76,44 +48,22 @@ export function MembersPage() {
         title={copy.introTitle}
         description={copy.introDescription}
       />
-      <PageSectionBlock id="member-search">
-        <motion.article {...fadeUp} className="members-search-panel">
-          <form className="members-search-form" onSubmit={handleSearchSubmit}>
-            <div className="members-search-form__inner">
-              <label className="members-search-form__field">
-                <span className="sr-only">카테고리 선택</span>
-                <select value={selectedCategory} onChange={(event) => setSelectedCategory(event.target.value)}>
-                  {categories.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="members-search-form__field members-search-form__field--search">
-                <span className="sr-only">회원사 검색</span>
-                <input
-                  type="search"
-                  value={searchInput}
-                  onChange={(event) => setSearchInput(event.target.value)}
-                  placeholder={content.searchPlaceholder}
-                />
-              </label>
-
-              <button type="submit" className="members-search-form__submit">
-                {content.searchButtonLabel}
-              </button>
-            </div>
-          </form>
-        </motion.article>
-
-        <div id="member-list" className="members-list-toolbar">
-          <div className="members-list-toolbar__summary">
-            <span>{content.totalLabel} <strong>{filteredCompanies.length}</strong>건</span>
-            <span className="members-list-toolbar__divider">|</span>
-            <span>{content.currentPageLabel} <strong>{currentPage}/{totalPages}</strong></span>
-          </div>
+      <PageSectionBlock id="member-list-section">
+        {/* 새로운 격자형 카테고리 탭 */}
+        <div className="category-tab-container">
+          <ul className="category-tab-list">
+            {categories.map((item) => (
+              <li key={item} className="category-tab-item">
+                <button
+                  type="button"
+                  className={selectedCategory === item ? 'category-tab-button is-active' : 'category-tab-button'}
+                  onClick={() => setSelectedCategory(item)}
+                >
+                  {item}
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
 
         {paginatedCompanies.length === 0 ? (
@@ -124,9 +74,9 @@ export function MembersPage() {
         ) : (
           <div className="members-grid">
             {paginatedCompanies.map((company) => (
-              <motion.article key={`${company.name}-${company.phone}`} {...fadeUp} className="member-card">
+              <motion.article key={resolveMemberCompanySlug(company)} {...fadeUp} className="member-card">
                 <Link
-                  to={`/members/${createMemberCompanySlug(company.name)}`}
+                  to={`/members/${resolveMemberCompanySlug(company)}`}
                   className="member-card__image-box"
                   aria-label={`${company.name} 상세 페이지 이동`}
                 >
@@ -140,11 +90,6 @@ export function MembersPage() {
                 </Link>
                 <div className="member-card__content">
                   <h3 className="member-card__title">{company.name}</h3>
-                  <p className="member-card__desc">
-                    {company.category} {company.secondaryCategory ? `· ${company.secondaryCategory}` : ''}
-                    <br />
-                    {company.address}
-                  </p>
                   {company.updatedAt ? <time className="member-card__date">{formatMonthDay(company.updatedAt)}</time> : null}
                 </div>
               </motion.article>
@@ -152,54 +97,18 @@ export function MembersPage() {
           </div>
         )}
 
-        {totalPages > 1 ? (
-          <div className="members-pagination">
-            <button
-              type="button"
-              className="members-pagination__arrow"
-              onClick={() => setCurrentPage(1)}
-              disabled={currentPage === 1}
-            >
-              <ChevronsLeft size={18} />
-            </button>
-            <button
-              type="button"
-              className="members-pagination__arrow"
-              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-              disabled={currentPage === 1}
-            >
-              <ChevronLeft size={18} />
-            </button>
-
-            {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
-              <button
-                key={page}
-                type="button"
-                className={page === currentPage ? 'members-pagination__button is-active' : 'members-pagination__button'}
-                onClick={() => setCurrentPage(page)}
-              >
-                {page}
-              </button>
-            ))}
-
-            <button
-              type="button"
-              className="members-pagination__arrow"
-              onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-              disabled={currentPage === totalPages}
-            >
-              <ChevronRight size={18} />
-            </button>
-            <button
-              type="button"
-              className="members-pagination__arrow"
-              onClick={() => setCurrentPage(totalPages)}
-              disabled={currentPage === totalPages}
-            >
-              <ChevronsRight size={18} />
-            </button>
+        <div className="content-list-footer">
+          <div className="content-list-footer__pagination">
+            <ContentPagination currentPage={currentPage} totalPages={totalPages} onChange={setCurrentPage} />
           </div>
-        ) : null}
+          {isEditorLoggedIn ? (
+            <Link to="/members/new" className="button button--primary content-list-footer__write-button">
+              새 협력업체 등록
+            </Link>
+          ) : (
+            <div />
+          )}
+        </div>
       </PageSectionBlock>
     </>
   );

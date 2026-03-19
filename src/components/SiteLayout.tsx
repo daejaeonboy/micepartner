@@ -1,7 +1,9 @@
 import { ChevronDown, Menu, X, Facebook, Instagram, Youtube } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useSiteContent } from '../context/SiteContentContext';
+import { clearAdminToken, getAdminToken } from '../lib/adminSession';
+import { deleteAdminSession } from '../lib/api';
 import { SiteContentSplash } from './SiteContentSplash';
 
 function toOptimizedMegaImageUrl(url: string) {
@@ -27,8 +29,11 @@ function toOptimizedMegaImageUrl(url: string) {
 
 export function SiteLayout() {
   const [isOpen, setIsOpen] = useState(false);
+  const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
   const [hoveredMenuPath, setHoveredMenuPath] = useState<string | null>(null);
+  const [isEditorLoggedIn, setIsEditorLoggedIn] = useState(() => Boolean(getAdminToken()));
   const location = useLocation();
+  const navigate = useNavigate();
   const { siteCopy, siteContent, ready } = useSiteContent();
 
   if (!ready) {
@@ -37,6 +42,10 @@ export function SiteLayout() {
 
   const footer = siteContent.footer;
   const menus = siteContent.menus;
+
+  useEffect(() => {
+    setIsEditorLoggedIn(Boolean(getAdminToken()));
+  }, [location.pathname, location.search, location.hash]);
 
   const normalizePathname = (path: string) => {
     const [pathname] = String(path || '').split('#');
@@ -102,6 +111,23 @@ export function SiteLayout() {
     };
   }, [megaMenuImageUrls]);
 
+  const handleEditorLogout = async () => {
+    const token = getAdminToken();
+
+    try {
+      if (token) {
+        await deleteAdminSession(token);
+      }
+    } catch {
+      // Ignore and clear local session regardless.
+    } finally {
+      clearAdminToken();
+      setIsEditorLoggedIn(false);
+      setIsOpen(false);
+      navigate('/', { replace: true });
+    }
+  };
+
   return (
     <div className="site-shell">
       <header 
@@ -131,10 +157,16 @@ export function SiteLayout() {
           </nav>
 
           <div className="site-header__actions">
-            <NavLink to="/login" className="button button--light site-header__login-button">
-              로그인
-            </NavLink>
-            <NavLink to="/faq" className="button button--primary">
+            {isEditorLoggedIn ? (
+              <button type="button" className="button button--light site-header__login-button" onClick={() => void handleEditorLogout()}>
+                로그아웃
+              </button>
+            ) : (
+              <NavLink to="/login" className="button button--light site-header__login-button">
+                로그인
+              </NavLink>
+            )}
+            <NavLink to="/faq" className="button button--primary site-header__cta">
               {footer.headerCtaLabel}
             </NavLink>
             <button
@@ -144,7 +176,7 @@ export function SiteLayout() {
               aria-label="메뉴 열기"
               aria-expanded={isOpen}
             >
-              {isOpen ? <X size={20} /> : <Menu size={20} />}
+              {isOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
           </div>
         </div>
@@ -187,19 +219,55 @@ export function SiteLayout() {
       {/* 메가 메뉴 활성 시 배경 어둡게 & 흐리게 처리하는 오버레이 */}
       <div className={`site-header-overlay ${hoveredMenuPath ? 'is-visible' : ''}`} />
 
-      {isOpen ? (
-        <div className="mobile-nav" aria-label="모바일 메뉴">
-          <div className="mobile-nav__inner">
-            {menus.headerItems.map((item) => (
-              <div key={item.path} className="mobile-nav__group">
+      {/* 모바일 메뉴 전용 배경 어둡게 (백드롭) */}
+      <div 
+        className={`mobile-nav-backdrop ${isOpen ? 'is-visible' : ''}`} 
+        onClick={() => setIsOpen(false)} 
+        aria-hidden="true" 
+      />
+
+      {/* 모바일 사이드 내비게이션 패널 */}
+      <div className={`mobile-nav ${isOpen ? 'is-open' : ''}`} aria-label="모바일 메뉴">
+        <div className="mobile-nav__header">
+          <img src="/logo.png" alt="Micepartner Logo" className="mobile-nav__logo" />
+          <button type="button" className="mobile-nav__close" onClick={() => setIsOpen(false)} aria-label="메뉴 닫기">
+            <X size={28} />
+          </button>
+        </div>
+        <div className="mobile-nav__inner">
+          {menus.headerItems.map((item) => (
+            <div key={item.path} className="mobile-nav__group">
+              <div 
+                className="mobile-nav__link-wrapper"
+                onClick={(e) => {
+                  if (item.children?.length) {
+                    e.preventDefault();
+                    setExpandedMenu(expandedMenu === item.path ? null : item.path);
+                  } else {
+                    setIsOpen(false);
+                  }
+                }}
+              >
                 <NavLink
-                  to={item.path}
+                  to={item.children?.length ? '#' : item.path}
                   className={isNavActive(item.path, item.children) ? 'mobile-nav__link is-active' : 'mobile-nav__link'}
-                  onClick={() => setIsOpen(false)}
+                  onClick={(e) => {
+                    if (item.children?.length) {
+                      e.preventDefault();
+                    }
+                  }}
                 >
                   {item.label}
                 </NavLink>
                 {item.children?.length ? (
+                  <ChevronDown
+                    size={20}
+                    className={`mobile-nav__chevron ${expandedMenu === item.path ? 'is-open' : ''}`}
+                  />
+                ) : null}
+              </div>
+              {item.children?.length ? (
+                <div className={`mobile-nav__sublist-wrapper ${expandedMenu === item.path ? 'is-open' : ''}`}>
                   <div className="mobile-nav__sublist">
                     {item.children.map((child) => (
                       <Link key={child.path} to={child.path} className="mobile-nav__sublink" onClick={() => setIsOpen(false)}>
@@ -207,18 +275,47 @@ export function SiteLayout() {
                       </Link>
                     ))}
                   </div>
-                ) : null}
-              </div>
-            ))}
-            <NavLink to="/login" className="button button--light mobile-nav__cta" onClick={() => setIsOpen(false)}>
-              로그인
-            </NavLink>
-            <NavLink to="/faq" className="header-cta mobile-nav__cta" onClick={() => setIsOpen(false)}>
-              {footer.headerCtaLabel}
-            </NavLink>
+                </div>
+              ) : null}
+            </div>
+          ))}
+          
+          <div className="mobile-nav__footer">
+            <div className="mobile-nav__auth-actions">
+              <NavLink to="/faq" className="header-cta mobile-nav__cta mobile-nav__cta--primary" onClick={() => setIsOpen(false)}>
+                {footer.headerCtaLabel}
+              </NavLink>
+              {isEditorLoggedIn ? (
+                <button type="button" className="mobile-nav__auth-link" onClick={() => void handleEditorLogout()}>
+                  로그아웃
+                </button>
+              ) : (
+                <NavLink to="/login" className="mobile-nav__auth-link" onClick={() => setIsOpen(false)}>
+                  로그인
+                </NavLink>
+              )}
+            </div>
+            
+            <div className="mobile-nav__socials">
+              {footer.metaPoints.find((m) => m.label.includes('페이스북')) && (
+                <a href={footer.metaPoints.find((m) => m.label.includes('페이스북'))?.value} target="_blank" rel="noopener noreferrer">
+                  <Facebook size={20} />
+                </a>
+              )}
+              {footer.metaPoints.find((m) => m.label.includes('인스타그램')) && (
+                <a href={footer.metaPoints.find((m) => m.label.includes('인스타그램'))?.value} target="_blank" rel="noopener noreferrer">
+                  <Instagram size={20} />
+                </a>
+              )}
+              {footer.metaPoints.find((m) => m.label.includes('유튜브')) && (
+                <a href={footer.metaPoints.find((m) => m.label.includes('유튜브'))?.value} target="_blank" rel="noopener noreferrer">
+                  <Youtube size={20} />
+                </a>
+              )}
+            </div>
           </div>
         </div>
-      ) : null}
+      </div>
 
       <main className="page-main">
         <Outlet />
