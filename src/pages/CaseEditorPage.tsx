@@ -2,10 +2,13 @@ import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from '
 import { ChevronLeft } from 'lucide-react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { PageMeta } from '../components/PageMeta';
+import { RichTextEditor } from '../components/RichTextEditor';
 import { useSiteContent } from '../context/SiteContentContext';
 import { getAdminToken } from '../lib/adminSession';
-import { saveSiteData, uploadAdminImage } from '../lib/api';
+import { saveSiteDataWithTransform, uploadAdminImage } from '../lib/api';
 import { createContentSlug, getTodayDateInputValue } from '../lib/contentUtils';
+import { getMenuLinkedCategories } from '../lib/menuCategories';
+import { stripHtmlTags } from '../lib/richText';
 import type { PortfolioEntry } from '../types/siteContent';
 
 type CaseEditorFormState = {
@@ -33,7 +36,7 @@ function toDateInputValue(value: string) {
   return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
 }
 
-function getInitialFormState(entry?: PortfolioEntry): CaseEditorFormState {
+function getInitialFormState(entry?: PortfolioEntry, defaultCategory = '포트폴리오'): CaseEditorFormState {
   // 기존에 쪼개져 있던 본문 내용들을 하나로 합쳐서 보여줍니다.
   const combinedBody = [
     entry?.summary,
@@ -44,7 +47,7 @@ function getInitialFormState(entry?: PortfolioEntry): CaseEditorFormState {
 
   return {
     title: entry?.title || '',
-    category: entry?.category || '포트폴리오',
+    category: entry?.category || defaultCategory,
     updatedAt: toDateInputValue(entry?.updatedAt || '') || getTodayDateInputValue(),
     period: entry?.period || '',
     summary: combinedBody || '',
@@ -62,26 +65,70 @@ export function CaseEditorPage() {
     [siteData.content.cases.entries, slug],
   );
   const isEditMode = Boolean(slug);
-  const [formState, setFormState] = useState<CaseEditorFormState>(() => getInitialFormState(currentEntry));
+  const menuCategories = useMemo(
+    () => getMenuLinkedCategories(siteContent.menus.headerItems, '/cases'),
+    [siteContent.menus.headerItems],
+  );
+  const isMenuCategoryManaged = menuCategories.length > 0;
+  const menuCategoryValues = useMemo(() => menuCategories.map((item) => item.value), [menuCategories]);
+  const defaultCategory =
+    currentEntry?.category && menuCategoryValues.includes(currentEntry.category)
+      ? currentEntry.category
+      : menuCategoryValues[0] || siteContent.cases.categories[0] || '포트폴리오';
+  const [formState, setFormState] = useState<CaseEditorFormState>(() => getInitialFormState(currentEntry, defaultCategory));
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [feedback, setFeedback] = useState('');
   const [error, setError] = useState('');
 
   const [isAddingNewCategory, setIsAddingNewCategory] = useState(false);
+  const categoryValues = useMemo(() => {
+    const baseCategories = isMenuCategoryManaged ? menuCategoryValues : siteContent.cases.categories;
+
+    return isMenuCategoryManaged
+      ? Array.from(new Set(baseCategories.filter(Boolean)))
+      : Array.from(new Set([...baseCategories, String(formState.category || '').trim()].filter(Boolean)));
+  }, [formState.category, isMenuCategoryManaged, menuCategoryValues, siteContent.cases.categories]);
+  const categoryOptions = useMemo(
+    () =>
+      isMenuCategoryManaged
+        ? menuCategories
+        : categoryValues.map((item) => ({
+            label: item,
+            value: item,
+            path: '',
+          })),
+    [categoryValues, isMenuCategoryManaged, menuCategories],
+  );
 
   if (isEditMode && !currentEntry) {
     return <Navigate to="/cases" replace />;
   }
 
   useEffect(() => {
-    setFormState(getInitialFormState(currentEntry));
+    setFormState(getInitialFormState(currentEntry, defaultCategory));
     setUploadFile(null);
-    setFeedback('');
     setError('');
     setIsAddingNewCategory(false);
-  }, [currentEntry]);
+  }, [currentEntry, defaultCategory]);
+
+  useEffect(() => {
+    if (!isMenuCategoryManaged) {
+      return;
+    }
+
+    setIsAddingNewCategory(false);
+    setFormState((current) => {
+      if (categoryValues.includes(current.category)) {
+        return current;
+      }
+
+      return {
+        ...current,
+        category: defaultCategory,
+      };
+    });
+  }, [categoryValues, defaultCategory, isMenuCategoryManaged]);
 
   const handleFieldChange =
     (field: keyof CaseEditorFormState) =>
@@ -92,10 +139,10 @@ export function CaseEditorPage() {
       }));
     };
 
-  const buildUniqueSlug = (title: string) => {
+  const buildUniqueSlug = (title: string, entries = siteData.content.cases.entries) => {
     const base = createContentSlug(title) || `case-${Date.now()}`;
     const existingSlugs = new Set(
-      siteData.content.cases.entries
+      entries
         .filter((item) => item.slug !== currentEntry?.slug)
         .map((item) => item.slug),
     );
@@ -128,27 +175,25 @@ export function CaseEditorPage() {
 
     setIsSaving(true);
     setError('');
-    setFeedback('');
 
     try {
       let coverImageUrl = formState.coverImageUrl.trim();
+      const summaryText = stripHtmlTags(formState.summary).trim();
 
       if (uploadFile) {
         coverImageUrl = await uploadAdminImage(uploadFile, 'cases', adminToken);
       }
 
-      // 간소화된 데이터를 PortfolioEntry 구조에 맞춰 저장합니다.
-      const nextEntry: PortfolioEntry = {
-        slug: currentEntry?.slug || buildUniqueSlug(title),
+      const nextEntryBase: Omit<PortfolioEntry, 'slug'> = {
         title,
-        category: formState.category || '운영사례',
+        category: (isMenuCategoryManaged ? formState.category : formState.category.trim()) || defaultCategory || '운영사례',
         updatedAt: formState.updatedAt || '',
         period: formState.period.trim() || formState.updatedAt || '',
         summary: formState.summary.trim(),
         coverImageUrl,
         // 아래 필드들은 간소화를 위해 빈 값 또는 기본값을 유지합니다.
         client: '',
-        cardDescription: formState.summary.slice(0, 100).trim(), // 본문 앞부분을 요약으로 사용
+        cardDescription: summaryText.slice(0, 100).trim(),
         outcome: '',
         tags: [],
         scope: [],
@@ -157,29 +202,34 @@ export function CaseEditorPage() {
         result: '',
         gallery: currentEntry?.gallery || [],
         seoTitle: title,
-        seoDescription: formState.summary.slice(0, 160).trim(),
+        seoDescription: summaryText.slice(0, 160).trim(),
       };
 
-      const nextEntries = currentEntry
-        ? siteData.content.cases.entries.map((item) => (item.slug === currentEntry.slug ? nextEntry : item))
-        : [nextEntry, ...siteData.content.cases.entries];
+      let savedSlug = currentEntry?.slug || '';
+      const saved = await saveSiteDataWithTransform(adminToken, (current) => {
+        const resolvedSlug = currentEntry?.slug || buildUniqueSlug(title, current.content.cases.entries);
+        const nextEntry: PortfolioEntry = {
+          slug: resolvedSlug,
+          ...nextEntryBase,
+        };
+        savedSlug = resolvedSlug;
 
-      const saved = await saveSiteData(
-        {
-          ...siteData,
+        return {
+          ...current,
           content: {
-            ...siteData.content,
+            ...current.content,
             cases: {
-              ...siteData.content.cases,
-              entries: nextEntries,
+              ...current.content.cases,
+              entries: currentEntry
+                ? current.content.cases.entries.map((item) => (item.slug === currentEntry.slug ? nextEntry : item))
+                : [nextEntry, ...current.content.cases.entries],
             },
           },
-        },
-        adminToken,
-      );
+        };
+      });
 
       updateSiteData(saved);
-      navigate(`/cases/${nextEntry.slug}`, { replace: true });
+      navigate(`/cases/${savedSlug}`, { replace: true });
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : '운영사례 저장에 실패했습니다.');
     } finally {
@@ -199,19 +249,16 @@ export function CaseEditorPage() {
 
     setIsDeleting(true);
     try {
-      const saved = await saveSiteData(
-        {
-          ...siteData,
-          content: {
-            ...siteData.content,
-            cases: {
-              ...siteData.content.cases,
-              entries: siteData.content.cases.entries.filter((item) => item.slug !== currentEntry.slug),
-            },
+      const saved = await saveSiteDataWithTransform(adminToken, (current) => ({
+        ...current,
+        content: {
+          ...current.content,
+          cases: {
+            ...current.content.cases,
+            entries: current.content.cases.entries.filter((item) => item.slug !== currentEntry.slug),
           },
         },
-        adminToken,
-      );
+      }));
 
       updateSiteData(saved);
       navigate('/cases', { replace: true });
@@ -222,27 +269,12 @@ export function CaseEditorPage() {
     }
   };
 
-  const handleInsertImage = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !adminToken) return;
-
-    try {
-      setIsSaving(true);
-      const imageUrl = await uploadAdminImage(file, 'cases-inline', adminToken);
-      const imageTag = `\n\n![이미지](${imageUrl})\n\n`;
-      
-      setFormState((current) => ({
-        ...current,
-        summary: current.summary + imageTag,
-      }));
-      setFeedback('본문에 이미지가 삽입되었습니다.');
-    } catch (e) {
-      setError('이미지 업로드에 실패했습니다.');
-    } finally {
-      setIsSaving(false);
-      // Reset file input
-      event.target.value = '';
+  const handleInlineBodyImageUpload = async (file: File) => {
+    if (!adminToken) {
+      throw new Error('편집 권한 확인을 위해 다시 로그인해 주세요.');
     }
+
+    return uploadAdminImage(file, 'cases-inline', adminToken);
   };
 
   return (
@@ -273,13 +305,17 @@ export function CaseEditorPage() {
                 <label className="form-field">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                     <span>카테고리</span>
-                    <button 
-                      type="button" 
-                      onClick={() => setIsAddingNewCategory(!isAddingNewCategory)}
-                      style={{ fontSize: '11px', color: 'var(--brand)', background: 'none', border: 'none', textDecoration: 'underline' }}
-                    >
-                      {isAddingNewCategory ? '기존 목록에서 선택' : '새 카테고리 추가'}
-                    </button>
+                    {isMenuCategoryManaged ? (
+                      <small style={{ fontSize: '11px', color: 'var(--brand)' }}>메뉴 관리 기준</small>
+                    ) : (
+                      <button 
+                        type="button" 
+                        onClick={() => setIsAddingNewCategory(!isAddingNewCategory)}
+                        style={{ fontSize: '11px', color: 'var(--brand)', background: 'none', border: 'none', textDecoration: 'underline' }}
+                      >
+                        {isAddingNewCategory ? '기존 목록에서 선택' : '새 카테고리 추가'}
+                      </button>
+                    )}
                   </div>
                   {isAddingNewCategory ? (
                     <input 
@@ -290,8 +326,8 @@ export function CaseEditorPage() {
                   ) : (
                     <select value={formState.category} onChange={handleFieldChange('category')}>
                       <option value="">카테고리 선택</option>
-                      {siteContent.cases.categories.map((item) => (
-                        <option key={item} value={item}>{item}</option>
+                      {categoryOptions.map((item) => (
+                        <option key={`${item.label}-${item.value}`} value={item.value}>{item.label}</option>
                       ))}
                     </select>
                   )}
@@ -324,26 +360,17 @@ export function CaseEditorPage() {
               ) : null}
 
               <div className="form-field" style={{ marginTop: '20px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                  <span style={{ fontSize: '16px', fontWeight: '800', color: 'var(--brand)' }}>상세 내용 (메인 콘텐츠)</span>
-                  <label className="button button--primary" style={{ fontSize: '13px', minHeight: '36px', padding: '0 16px', cursor: 'pointer' }}>
-                    본문에 사진 삽입하기
-                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleInsertImage} />
-                  </label>
-                </div>
-                <textarea 
-                  value={formState.summary} 
-                  onChange={handleFieldChange('summary')} 
-                  style={{ 
-                    minHeight: '600px', 
-                    fontSize: '16px', 
-                    lineHeight: '1.8', 
-                    padding: '24px',
-                    backgroundColor: '#fafbfc',
-                    border: '2px solid #e2e8f0',
-                    borderRadius: 0
-                  }}
-                  placeholder="행사의 상세한 내용을 자유롭게 작성하세요. 위 버튼을 눌러 이미지도 중간중간 삽입할 수 있습니다." 
+                <RichTextEditor
+                  label="상세 내용 (메인 콘텐츠)"
+                  value={formState.summary}
+                  onChange={(next) =>
+                    setFormState((current) => ({
+                      ...current,
+                      summary: next,
+                    }))
+                  }
+                  onUploadImage={handleInlineBodyImageUpload}
+                  minHeight={600}
                 />
               </div>
 

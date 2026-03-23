@@ -4,8 +4,9 @@ import { useState, useRef, useEffect } from 'react';
 import { PageMeta } from '../components/PageMeta';
 import { useSiteContent } from '../context/SiteContentContext';
 import { getAdminToken } from '../lib/adminSession';
-import { saveSiteData } from '../lib/api';
-import { formatIsoLikeDate, splitParagraphs } from '../lib/contentUtils';
+import { saveSiteDataWithTransform } from '../lib/api';
+import { formatIsoLikeDate } from '../lib/contentUtils';
+import { normalizeRichTextHtml } from '../lib/richText';
 
 export function PortfolioDetailPage() {
   const { slug } = useParams();
@@ -39,20 +40,16 @@ export function PortfolioDetailPage() {
     if (!confirmed) return;
 
     try {
-      const nextEntries = siteData.content.cases.entries.filter((item) => item.slug !== entry.slug);
-      const saved = await saveSiteData(
-        {
-          ...siteData,
-          content: {
-            ...siteData.content,
-            cases: {
-              ...siteData.content.cases,
-              entries: nextEntries,
-            },
+      const saved = await saveSiteDataWithTransform(adminToken, (current) => ({
+        ...current,
+        content: {
+          ...current.content,
+          cases: {
+            ...current.content.cases,
+            entries: current.content.cases.entries.filter((item) => item.slug !== entry.slug),
           },
         },
-        adminToken,
-      );
+      }));
 
       updateSiteData(saved);
       navigate('/cases', { replace: true });
@@ -64,7 +61,7 @@ export function PortfolioDetailPage() {
   const metaTitle = entry.seoTitle || `${entry.title} 포트폴리오`;
   const metaDescription = entry.seoDescription || entry.cardDescription;
   
-  const paragraphs = splitParagraphs(entry.summary || '');
+  const bodyHtml = normalizeRichTextHtml(entry.summary || '');
 
   return (
     <>
@@ -175,17 +172,7 @@ export function PortfolioDetailPage() {
                 </div>
               )}
 
-              {paragraphs.map((paragraph, idx) => {
-                const imgMatch = paragraph.match(/^!\[(.*?)\]\((.*?)\)$/);
-                if (imgMatch) {
-                  return (
-                    <div key={idx} className="notice-detail-card__inline-image">
-                      <img src={imgMatch[2]} alt={imgMatch[1]} style={{ width: '100%', borderRadius: 0, margin: '20px 0' }} />
-                    </div>
-                  );
-                }
-                return <p key={idx}>{paragraph}</p>;
-              })}
+              {bodyHtml ? <div className="notice-detail-card__rich-copy" dangerouslySetInnerHTML={{ __html: bodyHtml }} /> : null}
             </div>
           </article>
         </div>

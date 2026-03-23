@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { RichTextEditor } from '../components/RichTextEditor';
 import { PageMeta } from '../components/PageMeta';
 import { useSiteContent } from '../context/SiteContentContext';
 import { getAdminToken } from '../lib/adminSession';
-import { saveSiteData, uploadAdminImage } from '../lib/api';
+import { saveSiteDataWithTransform, uploadAdminImage } from '../lib/api';
 import { createContentSlug, getTodayDateInputValue } from '../lib/contentUtils';
 import type { ResourceItem } from '../types/siteContent';
 
@@ -87,10 +88,18 @@ export function ResourceFileEditorPage() {
       }));
     };
 
-  const buildUniqueSlug = (title: string) => {
+  const handleInlineBodyImageUpload = async (file: File) => {
+    if (!adminToken) {
+      throw new Error('편집 권한 확인을 위해 다시 로그인해.');
+    }
+
+    return uploadAdminImage(file, 'resources/files/inline', adminToken);
+  };
+
+  const buildUniqueSlug = (title: string, items = siteData.content.resources.items) => {
     const base = createContentSlug(title) || `resource-${Date.now()}`;
     const existingSlugs = new Set(
-      siteData.content.resources.items
+      items
         .filter((item) => item.slug !== currentResource?.slug)
         .map((item) => item.slug),
     );
@@ -134,8 +143,7 @@ export function ResourceFileEditorPage() {
         coverImageUrl = await uploadAdminImage(uploadFile, 'resources-files', adminToken);
       }
 
-      const nextResource: ResourceItem = {
-        slug: currentResource?.slug || buildUniqueSlug(title),
+      const nextResourceBase: Omit<ResourceItem, 'slug'> = {
         title,
         type,
         description,
@@ -148,26 +156,31 @@ export function ResourceFileEditorPage() {
         coverImageUrl,
       };
 
-      const nextItems = currentResource
-        ? siteData.content.resources.items.map((item) => (item.slug === currentResource.slug ? nextResource : item))
-        : [nextResource, ...siteData.content.resources.items];
+      let savedSlug = currentResource?.slug || '';
+      const saved = await saveSiteDataWithTransform(adminToken, (current) => {
+        const resolvedSlug = currentResource?.slug || buildUniqueSlug(title, current.content.resources.items);
+        const nextResource: ResourceItem = {
+          slug: resolvedSlug,
+          ...nextResourceBase,
+        };
+        savedSlug = resolvedSlug;
 
-      const saved = await saveSiteData(
-        {
-          ...siteData,
+        return {
+          ...current,
           content: {
-            ...siteData.content,
+            ...current.content,
             resources: {
-              ...siteData.content.resources,
-              items: nextItems,
+              ...current.content.resources,
+              items: currentResource
+                ? current.content.resources.items.map((item) => (item.slug === currentResource.slug ? nextResource : item))
+                : [nextResource, ...current.content.resources.items],
             },
           },
-        },
-        adminToken,
-      );
+        };
+      });
 
       updateSiteData(saved);
-      navigate(`/resources/files/${nextResource.slug}`, { replace: true });
+      navigate(`/resources/files/${savedSlug}`, { replace: true });
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : '자료 저장에 실패했습니다.');
     } finally {
@@ -189,19 +202,16 @@ export function ResourceFileEditorPage() {
     setError('');
 
     try {
-      const saved = await saveSiteData(
-        {
-          ...siteData,
-          content: {
-            ...siteData.content,
-            resources: {
-              ...siteData.content.resources,
-              items: siteData.content.resources.items.filter((item) => item.slug !== currentResource.slug),
-            },
+      const saved = await saveSiteDataWithTransform(adminToken, (current) => ({
+        ...current,
+        content: {
+          ...current.content,
+          resources: {
+            ...current.content.resources,
+            items: current.content.resources.items.filter((item) => item.slug !== currentResource.slug),
           },
         },
-        adminToken,
-      );
+      }));
 
       updateSiteData(saved);
       navigate('/resources/files', { replace: true });
@@ -275,15 +285,18 @@ export function ResourceFileEditorPage() {
                 <textarea value={formState.description} onChange={handleFieldChange('description')} rows={3} placeholder="목록에서 노출할 설명 문구" />
               </label>
 
-              <label className="form-field">
-                <span>본문</span>
-                <textarea
-                  value={formState.body}
-                  onChange={handleFieldChange('body')}
-                  rows={8}
-                  placeholder={'자료 본문을 입력해 주세요.\n\n줄바꿈 두 번으로 문단을 나눌 수 있습니다.'}
-                />
-              </label>
+              <RichTextEditor
+                label="본문"
+                value={formState.body}
+                onChange={(next) =>
+                  setFormState((current) => ({
+                    ...current,
+                    body: next,
+                  }))
+                }
+                onUploadImage={handleInlineBodyImageUpload}
+                minHeight={560}
+              />
 
               <div className="content-editor-form__grid">
                 <label className="form-field">

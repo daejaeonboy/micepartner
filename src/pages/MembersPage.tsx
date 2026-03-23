@@ -1,12 +1,13 @@
 import { motion } from 'motion/react';
 import { useMemo, useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ContentPagination } from '../components/ContentPagination';
 import { PageHeaderBlock, PageSectionBlock } from '../components/PublicPageTemplate';
 import { PageMeta } from '../components/PageMeta';
 import { useSiteContent } from '../context/SiteContentContext';
 import { getAdminToken } from '../lib/adminSession';
 import { formatMonthDay, resolveMemberCompanySlug } from '../lib/contentUtils';
+import { getMenuLinkedCategories } from '../lib/menuCategories';
 import { fadeUp } from '../lib/motion';
 
 const PAGE_SIZE = 12;
@@ -16,13 +17,52 @@ export function MembersPage() {
   const copy = siteCopy.members;
   const content = siteContent.members;
   const isEditorLoggedIn = Boolean(getAdminToken());
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedCategory, setSelectedCategory] = useState(content.filterAllLabel);
   const [currentPage, setCurrentPage] = useState(1);
+  const menuCategories = useMemo(
+    () => getMenuLinkedCategories(siteContent.menus.headerItems, '/members'),
+    [siteContent.menus.headerItems],
+  );
 
   const categories = useMemo(
-    () => [content.filterAllLabel, ...Array.from(new Set(content.companies.map((item) => item.category).filter(Boolean)))],
-    [content.companies, content.filterAllLabel],
+    () =>
+      menuCategories.length > 0
+        ? [
+            { label: content.filterAllLabel, value: content.filterAllLabel },
+            ...menuCategories,
+          ]
+        : [
+            { label: content.filterAllLabel, value: content.filterAllLabel },
+            ...Array.from(new Set(content.companies.map((item) => item.category).filter(Boolean))).map((item) => ({
+              label: item,
+              value: item,
+              path: '',
+            })),
+          ],
+    [content.companies, content.filterAllLabel, menuCategories],
   );
+
+  useEffect(() => {
+    const category = searchParams.get('category');
+    const nextCategory =
+      category && categories.some((item) => item.value === category && item.value !== content.filterAllLabel)
+        ? category
+        : content.filterAllLabel;
+    setSelectedCategory(nextCategory);
+  }, [categories, content.filterAllLabel, searchParams]);
+
+  const handleCategoryChange = (category: string) => {
+    setSelectedCategory(category);
+    setCurrentPage(1);
+
+    if (category === content.filterAllLabel) {
+      setSearchParams({});
+      return;
+    }
+
+    setSearchParams({ category });
+  };
 
   const filteredCompanies = useMemo(() => {
     return content.companies.filter((company) => {
@@ -48,18 +88,18 @@ export function MembersPage() {
         title={copy.introTitle}
         description={copy.introDescription}
       />
-      <PageSectionBlock id="member-list-section">
+      <PageSectionBlock id="member-list">
         {/* 새로운 격자형 카테고리 탭 */}
         <div className="category-tab-container">
           <ul className="category-tab-list">
             {categories.map((item) => (
-              <li key={item} className="category-tab-item">
+              <li key={`${item.label}-${item.value}`} className="category-tab-item">
                 <button
                   type="button"
-                  className={selectedCategory === item ? 'category-tab-button is-active' : 'category-tab-button'}
-                  onClick={() => setSelectedCategory(item)}
+                  className={selectedCategory === item.value ? 'category-tab-button is-active' : 'category-tab-button'}
+                  onClick={() => handleCategoryChange(item.value)}
                 >
-                  {item}
+                  {item.label}
                 </button>
               </li>
             ))}

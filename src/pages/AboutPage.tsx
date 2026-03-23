@@ -95,11 +95,6 @@ export function AboutPage() {
               className="about-rich-content"
               dangerouslySetInnerHTML={{ __html: normalizeRichTextHtml(currentPage.description) }}
             />
-            {currentPage.key !== 'intro' && currentPage.imageUrl ? (
-              <div className="about-section-image">
-                <img src={currentPage.imageUrl} alt={currentPage.title || currentPage.label} />
-              </div>
-            ) : null}
             {isEditorLoggedIn ? (
               <div className="about-page-actions">
                 <Link to={currentPage.editPath} className="button button--light notice-detail-page__edit-button">

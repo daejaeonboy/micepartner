@@ -4,15 +4,9 @@ import { useState, useRef, useEffect } from 'react';
 import { PageMeta } from '../components/PageMeta';
 import { useSiteContent } from '../context/SiteContentContext';
 import { getAdminToken } from '../lib/adminSession';
-import { saveSiteData } from '../lib/api';
+import { normalizeRichTextHtml } from '../lib/richText';
+import { saveSiteDataWithTransform } from '../lib/api';
 import { formatIsoLikeDate } from '../lib/contentUtils';
-
-function splitParagraphs(value: string) {
-  return String(value || '')
-    .split('\n\n')
-    .map((paragraph) => paragraph.trim())
-    .filter(Boolean);
-}
 
 export function ResourceDetailPage() {
   const { slug } = useParams();
@@ -46,20 +40,16 @@ export function ResourceDetailPage() {
     if (!confirmed) return;
 
     try {
-      const nextItems = siteData.content.resources.items.filter((item) => item.slug !== resource.slug);
-      const saved = await saveSiteData(
-        {
-          ...siteData,
-          content: {
-            ...siteData.content,
-            resources: {
-              ...siteData.content.resources,
-              items: nextItems,
-            },
+      const saved = await saveSiteDataWithTransform(adminToken, (current) => ({
+        ...current,
+        content: {
+          ...current.content,
+          resources: {
+            ...current.content.resources,
+            items: current.content.resources.items.filter((item) => item.slug !== resource.slug),
           },
         },
-        adminToken,
-      );
+      }));
 
       updateSiteData(saved);
       navigate('/resources/files', { replace: true });
@@ -68,7 +58,7 @@ export function ResourceDetailPage() {
     }
   };
 
-  const paragraphs = splitParagraphs(resource.body);
+  const bodyHtml = normalizeRichTextHtml(resource.body || resource.description);
   const detailDate = formatIsoLikeDate(resource.updatedAt);
 
   return (
@@ -170,11 +160,17 @@ export function ResourceDetailPage() {
 
           <article className="notice-detail-card">
             <div className="notice-detail-card__body">
-              {paragraphs.length > 0 ? (
-                paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)
-              ) : (
-                <p>{resource.description}</p>
-              )}
+              {resource.coverImageUrl ? (
+                <div className="notice-detail-card__inline-image" style={{ marginBottom: '40px' }}>
+                  <img
+                    src={resource.coverImageUrl}
+                    alt={resource.title}
+                    style={{ width: '100%', borderRadius: 0, display: 'block' }}
+                  />
+                </div>
+              ) : null}
+
+              <div className="notice-detail-card__rich-copy" dangerouslySetInnerHTML={{ __html: bodyHtml }} />
             </div>
           </article>
         </div>

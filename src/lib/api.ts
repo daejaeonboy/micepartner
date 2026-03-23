@@ -16,11 +16,17 @@ import {
   getDocs,
   orderBy,
   query,
+  runTransaction,
   setDoc,
   updateDoc,
 } from 'firebase/firestore';
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { defaultSiteData } from '../content/defaultSiteData';
+import {
+  isDraftManagedCategoryLabel,
+  resolveManagedHeaderChildPath,
+  shouldAutoGenerateManagedHeaderChildPath,
+} from './menuCategories';
 import { createMemberCompanySlug } from './contentUtils';
 import type { AdminAuthResponse, AdminProvider, AdminUser } from '../types/admin';
 import type { Inquiry, InquiryInput, InquiryStatus } from '../types/inquiry';
@@ -45,6 +51,7 @@ const COLLECTIONS = {
 const SITE_DATA_DOC_ID = 'current';
 const VALID_STATUSES = new Set<InquiryStatus>(['new', 'in_progress', 'completed']);
 export const ADMIN_APPROVAL_PENDING_MESSAGE = '관리자 승인 대기 중입니다. 승인 후 다시 로그인해 주세요.';
+const SITE_DATA_STALE_SAVE_MESSAGE = '다른 화면의 변경사항이 먼저 저장됐어. 새로고침한 뒤 다시 저장해 줘.';
 const LEGACY_ABOUT_COPY = {
   introTitle: '회사소개 페이지는 회사가 누구인지보다 어떤 방식으로 일하는지까지 보여줘야 합니다.',
   introDescription:
@@ -154,6 +161,28 @@ function normalizeLegacyHeaderChildPath(parentPath: string, childPath: string, c
     if (normalizedChildPath === '/about#about-process' || normalizedChildLabel.includes('운영프로세스')) {
       return '/about/process';
     }
+  }
+
+  if (normalizedParentPath === '/members') {
+    return resolveManagedHeaderChildPath(normalizedParentPath, childLabel, normalizedChildPath, fallbackPath);
+  }
+
+  if (normalizedParentPath === '/cases') {
+    const [pathWithoutHash] = normalizedChildPath.split('#');
+    const [, search = ''] = pathWithoutHash.split('?');
+    const queryCategory = new URLSearchParams(search).get('category') || '';
+
+    if (
+      shouldAutoGenerateManagedHeaderChildPath(normalizedParentPath, normalizedChildPath) ||
+      !queryCategory.trim() ||
+      isDraftManagedCategoryLabel(queryCategory)
+    ) {
+      return resolveManagedHeaderChildPath(normalizedParentPath, childLabel, normalizedChildPath, fallbackPath);
+    }
+  }
+
+  if (shouldAutoGenerateManagedHeaderChildPath(normalizedParentPath, normalizedChildPath)) {
+    return resolveManagedHeaderChildPath(normalizedParentPath, childLabel, normalizedChildPath, fallbackPath);
   }
 
   return normalizedChildPath || fallbackPath;
@@ -655,6 +684,7 @@ export function normalizeSiteData(data: Record<string, unknown> | null | undefin
   };
 
   const finalizeSiteData = (normalized: SiteData, rawSiteData?: Record<string, unknown> | null): SiteData => {
+    const normalizedUpdatedAt = String(rawSiteData?.updatedAt || '').trim();
     const removedPagePaths = new Set(['/services']);
     const isRemovedPagePath = (path: string) => removedPagePaths.has(normalizeMenuPath(path));
     const defaultHeaderMap = new Map(
@@ -711,9 +741,39 @@ export function normalizeSiteData(data: Record<string, unknown> | null | undefin
         children: item.children.filter((child) => !isRemovedPagePath(child.path)),
       }));
     const footerQuickLinks = normalized.content.menus.footerQuickLinks.filter((item) => !isRemovedPagePath(item.path));
-    const homePrimaryCtaHref = isRemovedPagePath(normalized.content.home.primaryCtaHref)
-      ? '/cases'
-      : normalized.content.home.primaryCtaHref;
+    const resolveHomeCtaHref = (path: string, fallback: string) => {
+      const trimmedPath = String(path || '').trim();
+
+      if (!trimmedPath) {
+        return fallback;
+      }
+
+      return isRemovedPagePath(trimmedPath) ? '/cases' : trimmedPath;
+    };
+    const homePrimaryCtaHref = resolveHomeCtaHref(
+      normalized.content.home.primaryCtaHref,
+      resolveHomeCtaHref(defaultSiteData.content.home.primaryCtaHref, '/cases'),
+    );
+    const homePositioningCtaHref = resolveHomeCtaHref(
+      normalized.content.home.positioningCtaHref,
+      resolveHomeCtaHref(defaultSiteData.content.home.positioningCtaHref, '/cases'),
+    );
+    const homeSecondaryCtaHref = resolveHomeCtaHref(
+      normalized.content.home.secondaryCtaHref,
+      resolveHomeCtaHref(defaultSiteData.content.home.secondaryCtaHref, '/cases'),
+    );
+    const homeResourcesCtaHref = resolveHomeCtaHref(
+      normalized.content.home.resourcesCtaHref,
+      defaultSiteData.content.home.resourcesCtaHref,
+    );
+    const homePartnersCtaHref = resolveHomeCtaHref(
+      normalized.content.home.partnersCtaHref,
+      defaultSiteData.content.home.partnersCtaHref,
+    );
+    const homeCtaButtonHref = resolveHomeCtaHref(
+      normalized.content.home.ctaButtonHref,
+      defaultSiteData.content.home.ctaButtonHref,
+    );
     const defaultCaseEntryMap = new Map(
       defaultSiteData.content.cases.entries.map((item) => [String(item.slug || '').trim(), item]),
     );
@@ -856,6 +916,7 @@ export function normalizeSiteData(data: Record<string, unknown> | null | undefin
 
     return {
       ...normalized,
+      updatedAt: normalizedUpdatedAt,
       copy: {
         ...normalized.copy,
         about: aboutCopy,
@@ -867,6 +928,11 @@ export function normalizeSiteData(data: Record<string, unknown> | null | undefin
           heroImageUrl: primaryHeroImageUrl,
           heroSlides,
           primaryCtaHref: homePrimaryCtaHref,
+          positioningCtaHref: homePositioningCtaHref,
+          secondaryCtaHref: homeSecondaryCtaHref,
+          resourcesCtaHref: homeResourcesCtaHref,
+          partnersCtaHref: homePartnersCtaHref,
+          ctaButtonHref: homeCtaButtonHref,
         },
         cases: {
           ...normalized.content.cases,
@@ -929,19 +995,57 @@ export async function fetchSiteData(): Promise<SiteData> {
   return normalizeSiteData(snapshot.data() as Record<string, unknown>);
 }
 
+export async function saveSiteDataWithTransform(
+  _adminToken: string,
+  transform: (current: SiteData) => SiteData,
+): Promise<SiteData> {
+  await getSignedInAdminUser();
+
+  const db = getFirebaseDb();
+  const ref = doc(db, COLLECTIONS.siteData, SITE_DATA_DOC_ID);
+
+  return runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(ref);
+    const current = snapshot.exists()
+      ? normalizeSiteData(snapshot.data() as Record<string, unknown>)
+      : defaultSiteData;
+    const next = normalizeSiteData(transform(current));
+
+    transaction.set(ref, {
+      ...next,
+      updatedAt: nowIso(),
+    });
+
+    return next;
+  });
+}
+
 export async function saveSiteData(item: SiteData, _adminToken: string): Promise<SiteData> {
   await getSignedInAdminUser();
 
   const db = getFirebaseDb();
   const ref = doc(db, COLLECTIONS.siteData, SITE_DATA_DOC_ID);
   const normalizedItem = normalizeSiteData(item);
+  const snapshot = await getDoc(ref);
+  const latestUpdatedAt = snapshot.exists() ? String(snapshot.data()?.updatedAt || '').trim() : '';
+  const localUpdatedAt = String(normalizedItem.updatedAt || '').trim();
+
+  if (snapshot.exists() && latestUpdatedAt && localUpdatedAt !== latestUpdatedAt) {
+    throw new Error(SITE_DATA_STALE_SAVE_MESSAGE);
+  }
+
+  const savedAt = nowIso();
+  const savedItem = normalizeSiteData({
+    ...normalizedItem,
+    updatedAt: savedAt,
+  } as Record<string, unknown>);
 
   await setDoc(ref, {
-    ...normalizedItem,
-    updatedAt: nowIso(),
+    ...savedItem,
+    updatedAt: savedAt,
   });
 
-  return normalizedItem;
+  return savedItem;
 }
 
 export async function uploadAdminFile(file: File, page: string, _adminToken: string): Promise<string> {

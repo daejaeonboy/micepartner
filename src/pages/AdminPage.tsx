@@ -30,14 +30,20 @@ import {
   fetchAdminUsers,
   fetchCurrentAdmin,
   fetchInquiries,
-  saveSiteData,
+  saveSiteDataWithTransform,
   updateAdminApproval,
   uploadAdminImage,
   updateInquiryStatus,
 } from '../lib/api';
+import {
+  isManagedHeaderChildAutoPath,
+  isManagedHeaderCategoryParentPath,
+  resolveManagedHeaderChildPath,
+  shouldAutoGenerateManagedHeaderChildPath,
+} from '../lib/menuCategories';
 import type { AdminUser } from '../types/admin';
 import type { EditorPageId, SiteEditorConfig } from '../types/editorConfig';
-import type { SitePageContent } from '../types/siteContent';
+import type { HeaderMenuItem, SitePageContent } from '../types/siteContent';
 import type { Inquiry, InquiryStatus } from '../types/inquiry';
 import type { SiteCopy } from '../types/siteCopy';
 
@@ -199,6 +205,10 @@ function normalizeEditorMenuPath(path: string) {
   return pathname.split('?')[0] || '/';
 }
 
+function normalizeComparableMenuPath(path: string) {
+  return String(path || '').trim();
+}
+
 const lockedManagedPaths = new Set([
   '/',
   '/cases',
@@ -343,9 +353,13 @@ const textFieldLabels: Record<string, string> = {
   step: '단계',
   primaryCtaLabel: '기본 버튼 문구',
   primaryCtaHref: '기본 버튼 링크',
+  positioningCtaHref: '자세히 보기 링크',
   secondaryCtaLabel: '보조 버튼 문구',
   secondaryCtaHref: '보조 버튼 링크',
+  resourcesCtaHref: '자세히 보기 링크',
+  partnersCtaHref: '자세히 보기 링크',
   ctaButtonLabel: 'CTA 버튼 문구',
+  ctaButtonHref: 'CTA 버튼 링크',
   filterAllLabel: '전체 옵션 문구',
   searchPlaceholder: '검색창 플레이스홀더',
   searchButtonLabel: '검색 버튼 문구',
@@ -426,12 +440,12 @@ const textFieldLabels: Record<string, string> = {
 const contentSectionGroups: Record<EditableSectionKey, ContentSectionGroup[]> = {
   home: [
     { id: 'hero', title: '히어로', description: '메인 첫 화면 슬라이드와 공통 히어로 문구를 관리합니다.', copyFields: [], contentPrefixes: [['heroEyebrow'], ['heroBadge'], ['heroSlides']], imagePrefixes: [['heroSlides']] },
-    { id: 'service-preview', title: '서비스 프리뷰', description: '서비스 프리뷰 문구, 버튼 문구와 대표 이미지를 관리합니다.', copyFields: ['servicePreviewTitle', 'servicePreviewDescription'], contentPrefixes: [['servicePreviewEyebrow'], ['primaryCtaLabel']], imagePrefixes: [['servicePreviewImageUrl']] },
-    { id: 'positioning', title: '브랜드 소개', description: '브랜드 포지셔닝 문구와 소개 카드 이미지를 관리합니다.', copyFields: ['positioningTitle', 'positioningDescription'], contentPrefixes: [['positioningCards']], imagePrefixes: [['positioningCards']] },
-    { id: 'portfolio-preview', title: '포트폴리오 프리뷰', description: '포트폴리오 소개 문구와 메인 카드 이미지를 관리합니다.', copyFields: ['portfolioPreviewTitle', 'portfolioPreviewDescription'], contentPrefixes: [['secondaryCtaLabel']], imagePrefixes: [['entries']] },
-    { id: 'resources-preview', title: '정보센터 프리뷰', description: '메인에 노출되는 정보센터 소개 문구와 카드 이미지, 카드 텍스트를 관리합니다.', copyFields: ['resourcesPreviewTitle', 'resourcesPreviewDescription'], contentPrefixes: [['items']], imagePrefixes: [['items']] },
-    { id: 'process', title: '비즈니스 파트너', description: '협력업체 소개 문구와 로고 이미지를 관리합니다.', copyFields: ['processTitle', 'processDescription'], contentPrefixes: [['partnerLogos']], imagePrefixes: [['partnerLogos']] },
-    { id: 'cta', title: 'CTA', description: '마지막 전환 섹션 문구와 배너 이미지를 관리합니다.', copyFields: ['ctaTitle', 'ctaDescription'], contentPrefixes: [['ctaButtonLabel']], imagePrefixes: [['ctaImageUrl']] },
+    { id: 'service-preview', title: '서비스 프리뷰', description: '서비스 프리뷰 문구, 버튼 문구, 버튼 링크와 대표 이미지를 관리합니다.', copyFields: ['servicePreviewTitle', 'servicePreviewDescription'], contentPrefixes: [['servicePreviewEyebrow'], ['primaryCtaLabel'], ['primaryCtaHref']], imagePrefixes: [['servicePreviewImageUrl']] },
+    { id: 'positioning', title: '브랜드 소개', description: '브랜드 포지셔닝 문구, 자세히 보기 링크와 소개 카드 이미지를 관리합니다.', copyFields: ['positioningTitle', 'positioningDescription'], contentPrefixes: [['positioningCtaHref'], ['positioningCards']], imagePrefixes: [['positioningCards']] },
+    { id: 'portfolio-preview', title: '포트폴리오 프리뷰', description: '포트폴리오 소개 문구, 버튼 문구, 버튼 링크와 메인 카드 이미지를 관리합니다.', copyFields: ['portfolioPreviewTitle', 'portfolioPreviewDescription'], contentPrefixes: [['secondaryCtaLabel'], ['secondaryCtaHref']], imagePrefixes: [['entries']] },
+    { id: 'resources-preview', title: '정보센터 프리뷰', description: '메인에 노출되는 정보센터 소개 문구, 자세히 보기 링크와 카드 이미지, 카드 텍스트를 관리합니다.', copyFields: ['resourcesPreviewTitle', 'resourcesPreviewDescription'], contentPrefixes: [['resourcesCtaHref'], ['items']], imagePrefixes: [['items']] },
+    { id: 'process', title: '비즈니스 파트너', description: '협력업체 소개 문구, 자세히 보기 링크와 로고 이미지를 관리합니다.', copyFields: ['processTitle', 'processDescription'], contentPrefixes: [['partnersCtaHref'], ['partnerLogos']], imagePrefixes: [['partnerLogos']] },
+    { id: 'cta', title: 'CTA', description: '마지막 전환 섹션 문구, 버튼 문구, 버튼 링크와 배너 이미지를 관리합니다.', copyFields: ['ctaTitle', 'ctaDescription'], contentPrefixes: [['ctaButtonLabel'], ['ctaButtonHref']], imagePrefixes: [['ctaImageUrl']] },
   ],
   services: [
     { id: 'intro', title: '상단 소개', description: '서비스 페이지 상단 카피를 관리합니다.', copyFields: ['introTitle', 'introDescription'], contentPrefixes: [['introEyebrow']], imagePrefixes: [] },
@@ -679,8 +693,6 @@ function collectTextFields(
       key === 'iconKey' ||
       key === 'href' ||
       key === 'to' ||
-      key === 'primaryCtaHref' ||
-      key === 'secondaryCtaHref' ||
       key === 'downloadUrl' ||
       key === 'seoTitle' ||
       key === 'seoDescription' ||
@@ -752,23 +764,100 @@ function createEmptyHeroSlide() {
   };
 }
 
-function createEmptyHeaderMenuItem() {
+function getAllHeaderMenuPaths(headerItems: HeaderMenuItem[]) {
+  return headerItems.flatMap((item) => [item.path, ...item.children.map((child) => child.path)]);
+}
+
+function createUniqueDraftMenuPath(existingPaths: string[], basePath = '/new-page') {
+  const normalizedBasePath = normalizeEditorMenuPath(basePath);
+  const usedPaths = new Set(existingPaths.map((path) => normalizeEditorMenuPath(path)).filter(Boolean));
+
+  if (!usedPaths.has(normalizedBasePath)) {
+    return normalizedBasePath;
+  }
+
+  let suffix = 2;
+  let nextPath = `${normalizedBasePath}-${suffix}`;
+
+  while (usedPaths.has(normalizeEditorMenuPath(nextPath))) {
+    suffix += 1;
+    nextPath = `${normalizedBasePath}-${suffix}`;
+  }
+
+  return nextPath;
+}
+
+function findDuplicateHeaderMenuPaths(headerItems: HeaderMenuItem[]) {
+  const seenPaths = new Set<string>();
+  const duplicatePaths = new Set<string>();
+
+  headerItems.forEach((item) => {
+    const parentPath = normalizeComparableMenuPath(item.path);
+
+    if (parentPath) {
+      if (seenPaths.has(parentPath)) {
+        duplicatePaths.add(parentPath);
+      } else {
+        seenPaths.add(parentPath);
+      }
+    }
+
+    item.children.forEach((child) => {
+      const childPath = normalizeComparableMenuPath(child.path);
+
+      if (!childPath) {
+        return;
+      }
+
+      if (seenPaths.has(childPath)) {
+        duplicatePaths.add(childPath);
+      } else {
+        seenPaths.add(childPath);
+      }
+    });
+  });
+
+  return Array.from(duplicatePaths);
+}
+
+function createEmptyHeaderMenuItem(existingPaths: string[] = []) {
+  const path = createUniqueDraftMenuPath(existingPaths);
+  const childPath = createUniqueDraftMenuPath([...existingPaths, path]);
+
   return {
     label: '새 메뉴',
-    path: '/new-page',
+    path,
     children: [
       {
         label: '하위 메뉴',
-        path: '/new-page',
+        path: childPath,
       },
     ],
   };
 }
 
-function createEmptyHeaderMenuChild() {
+function createEmptyHeaderMenuChild(existingPaths: string[] = [], parentPath = '') {
+  if (isManagedHeaderCategoryParentPath(parentPath)) {
+    const usedPaths = new Set(existingPaths.map((path) => normalizeComparableMenuPath(path)).filter(Boolean));
+    let suffix = 1;
+    let label = '새 카테고리';
+    let path = resolveManagedHeaderChildPath(parentPath, label);
+
+    while (usedPaths.has(normalizeComparableMenuPath(path))) {
+      suffix += 1;
+      label = `새 카테고리 ${suffix}`;
+      path = resolveManagedHeaderChildPath(parentPath, label);
+    }
+
+    return {
+      label,
+      path,
+    };
+  }
+
   return {
     label: '하위 메뉴',
-    path: '/new-page',
+    path: createUniqueDraftMenuPath(existingPaths),
   };
 }
 
@@ -1308,9 +1397,50 @@ export function AdminPage() {
     editor: nextEditor,
   });
 
+  const persistDraftSiteData = (
+    nextContent = draftSiteContentRef.current,
+    nextEditor = draftSiteEditorRef.current,
+    nextCopy = draftSiteCopyRef.current,
+  ) =>
+    saveSiteDataWithTransform(adminToken, (current) => {
+      const draft = buildNextSiteData(nextContent, nextEditor, nextCopy);
+
+      return {
+        ...current,
+        copy: draft.copy,
+        editor: draft.editor,
+        content: {
+          ...draft.content,
+          cases: {
+            ...draft.content.cases,
+            entries: current.content.cases.entries,
+          },
+          members: {
+            ...draft.content.members,
+            companies: current.content.members.companies,
+          },
+          resources: {
+            ...draft.content.resources,
+            notices: current.content.resources.notices,
+            items: current.content.resources.items,
+          },
+        },
+      };
+    });
+
   const handleSaveContent = async (scopeLabel = resolvedPageLabels[selectedEditorPage], scopeKey = `page:${selectedEditorPage}`) => {
     if (!adminToken) {
       return;
+    }
+
+    if (scopeKey === 'page:menus') {
+      const duplicatePaths = findDuplicateHeaderMenuPaths(draftSiteContentRef.current.menus.headerItems);
+
+      if (duplicatePaths.length > 0) {
+        setContentError(`중복된 메뉴 경로가 있어 저장할 수 없어. 겹치는 경로를 먼저 바꿔줘: ${duplicatePaths.join(', ')}`);
+        setContentMessage('');
+        return;
+      }
     }
 
     setIsSavingContent(true);
@@ -1319,7 +1449,7 @@ export function AdminPage() {
     setContentMessage('');
 
     try {
-      const saved = await saveSiteData(buildNextSiteData(), adminToken);
+      const saved = await persistDraftSiteData();
       updateSiteData(saved);
       setDraftSiteCopy(saved.copy);
       setDraftSiteContent(saved.content);
@@ -1399,11 +1529,12 @@ export function AdminPage() {
     void (async () => {
       try {
         const imageUrl = await uploadAdminImage(file, page, adminToken);
+        const currentContent = draftSiteContentRef.current;
         const nextContent = {
-          ...draftSiteContent,
-          [page]: updateNestedValue(draftSiteContent[page], path, imageUrl),
+          ...currentContent,
+          [page]: updateNestedValue(currentContent[page], path, imageUrl),
         };
-        const saved = await saveSiteData(buildNextSiteData(nextContent), adminToken);
+        const saved = await persistDraftSiteData(nextContent);
         updateSiteData(saved);
         setDraftSiteCopy(saved.copy);
         setDraftSiteContent(saved.content);
@@ -1436,11 +1567,12 @@ export function AdminPage() {
       try {
         await deleteAdminImage(currentValue, adminToken);
 
+        const currentContent = draftSiteContentRef.current;
         const nextContent = {
-          ...draftSiteContent,
-          [page]: updateNestedValue(draftSiteContent[page], path, ''),
+          ...currentContent,
+          [page]: updateNestedValue(currentContent[page], path, ''),
         };
-        const saved = await saveSiteData(buildNextSiteData(nextContent), adminToken);
+        const saved = await persistDraftSiteData(nextContent);
         updateSiteData(saved);
         setDraftSiteCopy(saved.copy);
         setDraftSiteContent(saved.content);
@@ -1466,6 +1598,99 @@ export function AdminPage() {
       const next = {
         ...current,
         [page]: updateNestedValue(current[page], arrayPath, nextItems),
+      };
+
+      draftSiteContentRef.current = next;
+      return next;
+    });
+  };
+
+  const handleAddHeaderMenuItem = () => {
+    setDraftSiteContent((current) => {
+      const existingPaths = getAllHeaderMenuPaths(current.menus.headerItems);
+      const next = {
+        ...current,
+        menus: {
+          ...current.menus,
+          headerItems: [...current.menus.headerItems, createEmptyHeaderMenuItem(existingPaths)],
+        },
+      };
+
+      draftSiteContentRef.current = next;
+      return next;
+    });
+  };
+
+  const handleAddHeaderMenuChild = (headerMenuIndex: number) => {
+    setDraftSiteContent((current) => {
+      const selectedMenu = current.menus.headerItems[headerMenuIndex];
+
+      if (!selectedMenu) {
+        return current;
+      }
+
+      const existingPaths = getAllHeaderMenuPaths(current.menus.headerItems);
+      const nextHeaderItems = current.menus.headerItems.map((item, index) =>
+        index === headerMenuIndex
+          ? {
+              ...item,
+              children: [...item.children, createEmptyHeaderMenuChild(existingPaths, item.path)],
+            }
+          : item,
+      );
+      const next = {
+        ...current,
+        menus: {
+          ...current.menus,
+          headerItems: nextHeaderItems,
+        },
+      };
+
+      draftSiteContentRef.current = next;
+      return next;
+    });
+  };
+
+  const handleManagedHeaderChildLabelChange = (headerMenuIndex: number, childIndex: number, nextLabel: string) => {
+    setDraftSiteContent((current) => {
+      const selectedMenu = current.menus.headerItems[headerMenuIndex];
+      const selectedChild = selectedMenu?.children?.[childIndex];
+
+      if (!selectedMenu || !selectedChild) {
+        return current;
+      }
+
+      const shouldSyncPath = isManagedHeaderCategoryParentPath(selectedMenu.path)
+        ? true
+        : shouldAutoGenerateManagedHeaderChildPath(selectedMenu.path, selectedChild.path) ||
+          isManagedHeaderChildAutoPath(selectedMenu.path, selectedChild.label, selectedChild.path);
+
+      const nextHeaderItems = current.menus.headerItems.map((item, itemIndex) => {
+        if (itemIndex !== headerMenuIndex) {
+          return item;
+        }
+
+        return {
+          ...item,
+          children: item.children.map((child, nextChildIndex) => {
+            if (nextChildIndex !== childIndex) {
+              return child;
+            }
+
+            return {
+              ...child,
+              label: nextLabel,
+              path: shouldSyncPath ? resolveManagedHeaderChildPath(item.path, nextLabel, child.path) : child.path,
+            };
+          }),
+        };
+      });
+      const next = {
+        ...current,
+        menus: {
+          ...current.menus,
+          headerItems: nextHeaderItems,
+        },
       };
 
       draftSiteContentRef.current = next;
@@ -1580,7 +1805,7 @@ export function AdminPage() {
                 type="button"
                 className="button button--primary"
                 style={{ minHeight: '36px', padding: '0 12px', fontSize: '13px' }}
-                onClick={() => handleAddArrayItem('menus', ['headerItems'], createEmptyHeaderMenuItem)}
+                onClick={handleAddHeaderMenuItem}
               >
                 <Plus size={14} />
                 그룹 추가
@@ -1644,7 +1869,7 @@ export function AdminPage() {
                 style={{ minHeight: '36px', padding: '0 12px', fontSize: '13px' }}
                 onClick={() => {
                   if (selectedHeaderMenu && canAddChildMenu) {
-                    handleAddArrayItem('menus', ['headerItems', selectedHeaderMenuIndex, 'children'], createEmptyHeaderMenuChild);
+                    handleAddHeaderMenuChild(selectedHeaderMenuIndex);
                   }
                 }}
                 disabled={!canAddChildMenu}
@@ -1764,7 +1989,7 @@ export function AdminPage() {
                           <input
                             type="text"
                             value={child.label}
-                            onChange={(e) => handleContentTextFieldChange('menus', ['headerItems', selectedHeaderMenuIndex, 'children', childIndex, 'label'], e.target.value)}
+                            onChange={(e) => handleManagedHeaderChildLabelChange(selectedHeaderMenuIndex, childIndex, e.target.value)}
                           />
                         </td>
                         <td>
@@ -1779,7 +2004,7 @@ export function AdminPage() {
                             disabled={isLockedPath}
                             title={isLockedPath ? '현재 구현된 페이지와 연결된 경로라서 고정되어 있습니다.' : undefined}
                           />
-                                {isLockedPath ? <small className="admin-helper-text">현재 구현된 페이지와 연결돼 있어 경로는 고정됩니다.</small> : null}
+                                {isLockedPath ? <small className="admin-helper-text">현재 구현된 페이지와 연결돼 있어 경로는 고정됩니다. 운영사례/협력업체 카테고리 메뉴는 이름 기준으로 자동 연결돼.</small> : null}
                               </>
                             );
                           })()}

@@ -7,6 +7,7 @@ import { PageMeta } from '../components/PageMeta';
 import { useSiteContent } from '../context/SiteContentContext';
 import { getAdminToken } from '../lib/adminSession';
 import { formatMonthDay } from '../lib/contentUtils';
+import { getMenuLinkedCategories } from '../lib/menuCategories';
 import { fadeUp } from '../lib/motion';
 
 const PAGE_SIZE = 9;
@@ -19,17 +20,33 @@ export function CaseStudiesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedCategory, setSelectedCategory] = useState<string>(content.allCategoryLabel);
   const [currentPage, setCurrentPage] = useState(1);
+  const menuCategories = useMemo(
+    () => getMenuLinkedCategories(siteContent.menus.headerItems, '/cases'),
+    [siteContent.menus.headerItems],
+  );
 
   const categories = useMemo(
-    () => [content.allCategoryLabel, ...content.categories],
-    [content.allCategoryLabel, content.categories],
+    () =>
+      menuCategories.length > 0
+        ? [
+            { label: content.allCategoryLabel, value: content.allCategoryLabel },
+            ...menuCategories,
+          ]
+        : [
+            { label: content.allCategoryLabel, value: content.allCategoryLabel },
+            ...content.categories.map((item) => ({ label: item, value: item, path: '' })),
+          ],
+    [content.allCategoryLabel, content.categories, menuCategories],
   );
 
   useEffect(() => {
     const category = searchParams.get('category');
-    const nextCategory = category && content.categories.includes(category) ? category : content.allCategoryLabel;
+    const nextCategory =
+      category && categories.some((item) => item.value === category && item.value !== content.allCategoryLabel)
+        ? category
+        : content.allCategoryLabel;
     setSelectedCategory(nextCategory);
-  }, [content.allCategoryLabel, content.categories, searchParams]);
+  }, [categories, content.allCategoryLabel, searchParams]);
 
   const handleCategoryChange = (category: string) => {
     setSelectedCategory(category);
@@ -73,13 +90,13 @@ export function CaseStudiesPage() {
         <div className="category-tab-container">
           <ul className="category-tab-list">
             {categories.map((item) => (
-              <li key={item} className="category-tab-item">
+              <li key={`${item.label}-${item.value}`} className="category-tab-item">
                 <button
                   type="button"
-                  className={selectedCategory === item ? 'category-tab-button is-active' : 'category-tab-button'}
-                  onClick={() => handleCategoryChange(item)}
+                  className={selectedCategory === item.value ? 'category-tab-button is-active' : 'category-tab-button'}
+                  onClick={() => handleCategoryChange(item.value)}
                 >
-                  {item}
+                  {item.label}
                 </button>
               </li>
             ))}

@@ -22,7 +22,15 @@ export function normalizeRichTextHtml(value: string) {
     .split('\n\n')
     .map((paragraph) => paragraph.trim())
     .filter(Boolean)
-    .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, '<br />')}</p>`)
+    .map((paragraph) => {
+      const imageMatch = paragraph.match(/^!\[(.*?)\]\((.*?)\)$/);
+      if (imageMatch) {
+        const [, altText, imageUrl] = imageMatch;
+        return `<p><img src="${escapeHtml(imageUrl.trim())}" alt="${escapeHtml(altText.trim())}" /></p>`;
+      }
+
+      return `<p>${escapeHtml(paragraph).replace(/\n/g, '<br />')}</p>`;
+    })
     .join('');
 }
 
@@ -34,4 +42,3 @@ export function stripHtmlTags(value: string) {
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
-

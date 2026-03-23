@@ -6,9 +6,10 @@ import {
   useCallback,
   useEffect,
   useRef,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { PageMeta } from '../components/PageMeta';
 import { SectionHeading } from '../components/SectionHeading';
 import { useSiteContent } from '../context/SiteContentContext';
@@ -677,32 +678,24 @@ function Section2Slider({ slides }: { slides: { img: string; title: string; desc
         </div>
         {/* Dots inside image */}
         <div
-          className="home-slider__dots-container"
+          className="home-slider__dots-container home-hero-slider__dots"
           style={{
             position: 'absolute',
             bottom: '20px',
             left: '50%',
             transform: 'translateX(-50%)',
-            display: 'flex',
-            gap: '8px',
             zIndex: 10,
           }}
+          aria-label="대전 MICE 슬라이드 선택"
         >
-          {slides.map((_, i) => (
+          {slides.map((slide, i) => (
             <button
-              key={i}
+              key={`${slide.title}-${i}`}
               type="button"
+              className={`home-hero-slider__dot${i === current ? ' is-active' : ''}`}
               onClick={() => setCurrent(i)}
-              style={{
-                width: i === current ? '24px' : '8px',
-                height: '8px',
-                borderRadius: 0,
-                background: i === current ? 'var(--brand)' : 'rgba(255,255,255,0.6)',
-                border: 'none',
-                cursor: 'pointer',
-                padding: 0,
-                transition: 'all 0.3s ease',
-              }}
+              aria-label={`${i + 1}번 슬라이드 보기`}
+              aria-pressed={i === current}
             />
           ))}
         </div>
@@ -725,31 +718,42 @@ function PortfolioSlider({ items }: { items: { slug: string; title: string; cove
     pointerId: -1,
     startX: 0,
     startScrollLeft: 0,
+    deltaX: 0,
     dragging: false,
   });
 
+  const isMobilePortfolioSlider = useCallback(() => {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+
+    return window.innerWidth <= 768;
+  }, []);
+
   const handlePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     const track = trackRef.current;
-    if (!track) return;
+    if (!track || !isMobilePortfolioSlider()) return;
     
     dragRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
       startScrollLeft: track.scrollLeft,
+      deltaX: 0,
       dragging: true,
     };
     track.setPointerCapture(event.pointerId);
     setIsDragging(true);
-  }, []);
+  }, [isMobilePortfolioSlider]);
 
   const handlePointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!dragRef.current.dragging) return;
+    if (!dragRef.current.dragging || !isMobilePortfolioSlider()) return;
     const track = trackRef.current;
     if (!track) return;
     
     const deltaX = event.clientX - dragRef.current.startX;
+    dragRef.current.deltaX = deltaX;
     track.scrollLeft = dragRef.current.startScrollLeft - deltaX;
-  }, []);
+  }, [isMobilePortfolioSlider]);
 
   const handlePointerEnd = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     if (!dragRef.current.dragging) return;
@@ -757,6 +761,12 @@ function PortfolioSlider({ items }: { items: { slug: string; title: string; cove
     setIsDragging(false);
     if (trackRef.current) {
       trackRef.current.releasePointerCapture(event.pointerId);
+    }
+  }, []);
+
+  const handleCardClick = useCallback((event: ReactMouseEvent<HTMLAnchorElement>) => {
+    if (Math.abs(dragRef.current.deltaX) > 8) {
+      event.preventDefault();
     }
   }, []);
 
@@ -772,12 +782,12 @@ function PortfolioSlider({ items }: { items: { slug: string; title: string; cove
       >
         {items.map((item, index) => (
           <div key={item.slug} className="portfolio-slider__item">
-            <div className="portfolio-slider__card">
+            <Link to={`/cases/${item.slug}`} className="portfolio-slider__card" onClick={handleCardClick} aria-label={`${item.title} 상세 보기`}>
               <img src={item.coverImageUrl || primaryHeroImageUrl} alt={item.title || `포트폴리오 ${index + 1}`} draggable={false} />
               <div className="portfolio-slider__overlay">
                 <strong>{item.title}</strong>
               </div>
-            </div>
+            </Link>
           </div>
         ))}
       </div>
@@ -843,6 +853,15 @@ export function HomePage() {
   const topPartnerRow = partnerLogos.slice(0, midpoint);
   const bottomPartnerRow = partnerLogos.slice(midpoint).length > 0 ? partnerLogos.slice(midpoint) : partnerLogos.slice(0, midpoint);
   const buildPartnerTrack = (items: typeof partnerLogos) => [...items, ...items];
+  const servicePreviewHref = home.primaryCtaHref || '/cases';
+  const positioningCtaHref = home.positioningCtaHref || '/cases';
+  const portfolioPreviewHref = home.secondaryCtaHref || '/cases';
+  const resourcesCtaHref = home.resourcesCtaHref || '/resources';
+  const partnersCtaHref = home.partnersCtaHref || '/members';
+  const finalCtaHref = home.ctaButtonHref || '/faq';
+  const finalCtaTitle = copy.ctaTitle || '고객센터';
+  const finalCtaDescription = copy.ctaDescription || '';
+  const finalCtaLabel = home.ctaButtonLabel || '1:1 문의하기';
   const sections = {
     hero: (
       <HomeHeroSlider slides={resolvedHeroSlides} eyebrow={heroEyebrow} badge={home.heroBadge} />
@@ -856,7 +875,7 @@ export function HomePage() {
               {copy.servicePreviewTitle}
             </h2>
             <p className="hero-slogan__description">{copy.servicePreviewDescription}</p>
-            <Link to={home.primaryCtaHref} className="home-outline-button hero-slogan__button">
+            <Link to={servicePreviewHref} className="home-outline-button hero-slogan__button">
               {home.primaryCtaLabel}
             </Link>
           </motion.div>
@@ -892,17 +911,17 @@ export function HomePage() {
           }}>
             {copy.positioningTitle || '대전 MICE'}
           </h2>
-          <NavLink to="/services" style={{ 
+          <Link to={positioningCtaHref} style={{ 
             display: 'inline-flex', 
             alignItems: 'center', 
             gap: '8px', 
             color: '#444444', 
-            fontSize: '16px', 
+            fontSize: '15px', 
             fontWeight: 500,
             whiteSpace: 'nowrap'
           }}>
             자세히 보기 <ArrowRight size={16} />
-          </NavLink>
+          </Link>
         </div>
 
         <Section2Slider slides={positioningSlides} />
@@ -926,17 +945,17 @@ export function HomePage() {
           }}>
             {copy.portfolioPreviewTitle}
           </h2>
-          <NavLink to={home.secondaryCtaHref} style={{ 
+          <Link to={portfolioPreviewHref} style={{ 
             display: 'inline-flex', 
             alignItems: 'center', 
             gap: '8px', 
             color: '#444444', 
-            fontSize: '16px', 
+            fontSize: '15px', 
             fontWeight: 500,
             whiteSpace: 'nowrap'
           }}>
             자세히 보기 <ArrowRight size={16} />
-          </NavLink>
+          </Link>
         </div>
 
         <PortfolioSlider items={galleryCases} />
@@ -960,31 +979,34 @@ export function HomePage() {
           }}>
             {copy.resourcesPreviewTitle}
           </h2>
-          <NavLink to="/resources" style={{ 
+          <Link to={resourcesCtaHref} style={{ 
             display: 'inline-flex', 
             alignItems: 'center', 
             gap: '8px', 
             color: '#444444', 
-            fontSize: '16px', 
+            fontSize: '15px', 
             fontWeight: 500,
             whiteSpace: 'nowrap'
           }}>
             자세히 보기 <ArrowRight size={16} />
-          </NavLink>
+          </Link>
         </div>
 
         <div className="home-review-grid">
           {resourcesPreview.map((resource) => (
             <div key={resource.slug} className="home-review-card">
-              <div className="home-review-card__image">
+              <Link
+                to={`/resources/files/${resource.slug}`}
+                className="home-review-card__image home-review-card__image-link"
+                aria-label={`${resource.title} 상세 보기`}
+              >
                 <img src={resource.coverImageUrl} alt={resource.title} />
-              </div>
+              </Link>
               <div className="home-review-card__body">
                 <h4>{resource.title}</h4>
                 {resource.updatedAt && (
                   <span className="home-review-card__date">{resource.updatedAt.replaceAll('-', '. ')}</span>
                 )}
-                <p>{resource.description}</p>
               </div>
             </div>
           ))}
@@ -1009,17 +1031,17 @@ export function HomePage() {
           }}>
             {copy.processTitle}
           </h2>
-          <NavLink to="/members" style={{ 
+          <Link to={partnersCtaHref} style={{ 
             display: 'inline-flex', 
             alignItems: 'center', 
             gap: '8px', 
             color: '#444444', 
-            fontSize: '16px', 
+            fontSize: '15px', 
             fontWeight: 500,
             whiteSpace: 'nowrap'
           }}>
             자세히 보기 <ArrowRight size={16} />
-          </NavLink>
+          </Link>
         </div>
 
         <div className="home-logo-marquee-group">
@@ -1056,10 +1078,11 @@ export function HomePage() {
     cta: (
       <section className="home-section home-section--last">
         <motion.article {...fadeUp} className="home-simple-cta">
-          <h2>고객센터</h2>
+          <h2>{finalCtaTitle}</h2>
+          {finalCtaDescription ? <p className="home-simple-cta__description">{finalCtaDescription}</p> : null}
           <div className="home-simple-cta__actions">
-            <Link to="/contact" className="home-simple-cta__button">
-              1:1 문의하기
+            <Link to={finalCtaHref} className="home-simple-cta__button">
+              {finalCtaLabel}
             </Link>
           </div>
         </motion.article>

@@ -438,10 +438,10 @@ export function RichTextEditor({
   };
 
   const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const files = Array.from(event.target.files || []);
     event.target.value = '';
 
-    if (!file || !onUploadImage) {
+    if (files.length === 0 || !onUploadImage) {
       return;
     }
 
@@ -449,8 +449,13 @@ export function RichTextEditor({
     setEditorError('');
 
     try {
-      const uploadedUrl = await onUploadImage(file);
-      insertHtml(`<p><img src="${uploadedUrl}" alt="" /></p>`);
+      const uploadedUrls: string[] = [];
+
+      for (const file of files) {
+        uploadedUrls.push(await onUploadImage(file));
+      }
+
+      insertHtml(uploadedUrls.map((uploadedUrl) => `<p><img src="${uploadedUrl}" alt="" /></p>`).join(''));
     } catch (error) {
       setEditorError(error instanceof Error ? error.message : '본문 이미지 업로드에 실패했어.');
     } finally {
@@ -589,6 +594,7 @@ export function RichTextEditor({
             id={fileInputId}
             type="file"
             accept="image/*"
+            multiple
             hidden
             onChange={handleImageUpload}
           />

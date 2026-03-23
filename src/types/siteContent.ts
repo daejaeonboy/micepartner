@@ -157,13 +157,17 @@ export type SitePageContent = {
     heroPanelMetrics: SiteMetric[];
     heroStats: SiteStat[];
     positioningCards: SiteCard[];
+    positioningCtaHref: string;
     proofItems: { label: string; iconKey: IconKey }[];
     partnerLogos: PartnerLogoItem[];
     primaryCtaLabel: string;
     primaryCtaHref: string;
     secondaryCtaLabel: string;
     secondaryCtaHref: string;
+    resourcesCtaHref: string;
+    partnersCtaHref: string;
     ctaButtonLabel: string;
+    ctaButtonHref: string;
     ctaImageUrl: string;
   };
   services: {

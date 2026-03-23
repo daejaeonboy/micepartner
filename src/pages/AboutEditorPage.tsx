@@ -6,13 +6,12 @@ import { PageMeta } from '../components/PageMeta';
 import { useSiteContent } from '../context/SiteContentContext';
 import { getAdminToken } from '../lib/adminSession';
 import { getAboutHeaderItem, getAboutResolvedPage, getAboutSidebarItems, ABOUT_CHILD_PAGE_CONFIGS } from '../lib/aboutConfig';
-import { saveSiteData, uploadAdminImage } from '../lib/api';
+import { saveSiteDataWithTransform, uploadAdminImage } from '../lib/api';
 
 type AboutEditorFormState = {
   menuLabel: string;
   title: string;
   description: string;
-  imageUrl: string;
 };
 
 function getInitialFormState(pathname: string, siteData: ReturnType<typeof useSiteContent>['siteData']): AboutEditorFormState | null {
@@ -31,7 +30,6 @@ function getInitialFormState(pathname: string, siteData: ReturnType<typeof useSi
     menuLabel: currentPage.key === 'intro' ? '' : currentPage.label,
     title: currentPage.title,
     description: currentPage.description,
-    imageUrl: currentPage.imageUrl,
   };
 }
 
@@ -47,13 +45,11 @@ export function AboutEditorPage() {
     siteData.content.about,
   );
   const [formState, setFormState] = useState<AboutEditorFormState | null>(() => getInitialFormState(location.pathname, siteData));
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
     setFormState(getInitialFormState(location.pathname, siteData));
-    setUploadFile(null);
     setError('');
   }, [location.pathname, siteData]);
 
@@ -90,33 +86,29 @@ export function AboutEditorPage() {
     setError('');
 
     try {
-      let imageUrl = formState.imageUrl.trim();
-
-      if (uploadFile) {
-        imageUrl = await uploadAdminImage(uploadFile, 'about', adminToken);
-      }
-
-      const nextSiteData = {
-        ...siteData,
-        copy: {
-          ...siteData.copy,
-          about: { ...siteData.copy.about },
-        },
-        content: {
-          ...siteData.content,
-          about: { ...siteData.content.about },
-          menus: {
-            ...siteData.content.menus,
-            headerItems: [...siteData.content.menus.headerItems],
+      const saved = await saveSiteDataWithTransform(adminToken, (current) => {
+        const nextSiteData = {
+          ...current,
+          copy: {
+            ...current.copy,
+            about: { ...current.copy.about },
           },
-        },
-      };
+          content: {
+            ...current.content,
+            about: { ...current.content.about },
+            menus: {
+              ...current.content.menus,
+              headerItems: [...current.content.menus.headerItems],
+            },
+          },
+        };
 
-      if (currentPage.key === 'intro') {
-        nextSiteData.copy.about.introTitle = formState.title.trim();
-        nextSiteData.copy.about.introDescription = formState.description;
-        nextSiteData.content.about.heroImageUrl = imageUrl;
-      } else {
+        if (currentPage.key === 'intro') {
+          nextSiteData.copy.about.introTitle = formState.title.trim();
+          nextSiteData.copy.about.introDescription = formState.description;
+          return nextSiteData;
+        }
+
         const config = ABOUT_CHILD_PAGE_CONFIGS.find((item) => item.key === currentPage.key);
 
         if (!config) {
@@ -125,7 +117,6 @@ export function AboutEditorPage() {
 
         nextSiteData.copy.about[config.titleField] = formState.title.trim();
         nextSiteData.copy.about[config.descriptionField] = formState.description;
-        nextSiteData.content.about[config.imageField] = imageUrl;
 
         nextSiteData.content.menus.headerItems = nextSiteData.content.menus.headerItems.map((item) =>
           item.path === '/about'
@@ -143,9 +134,9 @@ export function AboutEditorPage() {
               }
             : item,
         );
-      }
 
-      const saved = await saveSiteData(nextSiteData, adminToken);
+        return nextSiteData;
+      });
       updateSiteData(saved);
       navigate(currentPage.path, { replace: true });
     } catch (saveError) {
@@ -176,7 +167,7 @@ export function AboutEditorPage() {
             <p className="content-editor-page__eyebrow">ABOUT EDITOR</p>
             <h1>{currentPage.label} 수정</h1>
             <p className="content-editor-page__lead">
-              {aboutMenuTitle} 안에서 이 페이지에 필요한 제목, 본문, 이미지{currentPage.key !== 'intro' ? ', 카테고리명' : ''}만 수정하면 돼.
+              {aboutMenuTitle} 안에서 이 페이지에 필요한 제목, 본문{currentPage.key !== 'intro' ? ', 카테고리명' : ''}만 수정하면 돼.
             </p>
           </div>
 
@@ -210,21 +201,6 @@ export function AboutEditorPage() {
                 onUploadImage={handleInlineBodyImageUpload}
                 minHeight={640}
               />
-
-              <div className="content-editor-form__grid">
-                <label className="form-field">
-                  <span>이미지 URL</span>
-                  <input value={formState.imageUrl} onChange={handleFieldChange('imageUrl')} placeholder="https://..." />
-                </label>
-                <label className="form-field">
-                  <span>새 이미지 업로드</span>
-                  <input type="file" accept="image/*" onChange={(event) => setUploadFile(event.target.files?.[0] || null)} />
-                </label>
-              </div>
-
-              <div className="content-editor-form__image-preview">
-                {formState.imageUrl ? <img src={formState.imageUrl} alt={currentPage.label} /> : <span>미리보기 없음</span>}
-              </div>
 
               {error ? <p className="form-feedback form-feedback--error">{error}</p> : null}
 

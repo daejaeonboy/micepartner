@@ -6,4 +6,5 @@ export type SiteData = {
   copy: SiteCopy;
   content: SitePageContent;
   editor: SiteEditorConfig;
+  updatedAt?: string;
 };

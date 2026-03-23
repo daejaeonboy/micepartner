@@ -4,8 +4,9 @@ import { useState, useRef, useEffect } from 'react';
 import { PageMeta } from '../components/PageMeta';
 import { useSiteContent } from '../context/SiteContentContext';
 import { getAdminToken } from '../lib/adminSession';
-import { saveSiteData } from '../lib/api';
-import { formatIsoLikeDate, resolveMemberCompanySlug, splitParagraphs } from '../lib/contentUtils';
+import { saveSiteDataWithTransform } from '../lib/api';
+import { formatIsoLikeDate, resolveMemberCompanySlug } from '../lib/contentUtils';
+import { normalizeRichTextHtml } from '../lib/richText';
 
 export function MemberDetailPage() {
   const { slug } = useParams();
@@ -41,20 +42,18 @@ export function MemberDetailPage() {
     if (!confirmed) return;
 
     try {
-      const nextCompanies = siteData.content.members.companies.filter((item) => resolveMemberCompanySlug(item) !== resolveMemberCompanySlug(company));
-      const saved = await saveSiteData(
-        {
-          ...siteData,
-          content: {
-            ...siteData.content,
-            members: {
-              ...siteData.content.members,
-              companies: nextCompanies,
-            },
+      const saved = await saveSiteDataWithTransform(adminToken, (current) => ({
+        ...current,
+        content: {
+          ...current.content,
+          members: {
+            ...current.content.members,
+            companies: current.content.members.companies.filter(
+              (item) => resolveMemberCompanySlug(item) !== resolveMemberCompanySlug(company),
+            ),
           },
         },
-        adminToken,
-      );
+      }));
 
       updateSiteData(saved);
       navigate('/members', { replace: true });
@@ -63,7 +62,7 @@ export function MemberDetailPage() {
     }
   };
 
-  const paragraphs = splitParagraphs(
+  const bodyHtml = normalizeRichTextHtml(
     company.body ||
       [
         `${company.name}는 ${company.category}${company.secondaryCategory ? ` · ${company.secondaryCategory}` : ''} 분야의 협력업체입니다.`,
@@ -182,17 +181,7 @@ export function MemberDetailPage() {
                 </div>
               )}
 
-              {paragraphs.map((paragraph, idx) => {
-                const imgMatch = paragraph.match(/^!\[(.*?)\]\((.*?)\)$/);
-                if (imgMatch) {
-                  return (
-                    <div key={idx} className="notice-detail-card__inline-image">
-                      <img src={imgMatch[2]} alt={imgMatch[1]} style={{ width: '100%', margin: '20px 0' }} />
-                    </div>
-                  );
-                }
-                return <p key={idx}>{paragraph}</p>;
-              })}
+              {bodyHtml ? <div className="notice-detail-card__rich-copy" dangerouslySetInnerHTML={{ __html: bodyHtml }} /> : null}
             </div>
           </article>
         </div>

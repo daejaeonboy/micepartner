@@ -76,6 +76,7 @@ export const defaultSiteContent: SitePageContent = {
       { label: '전문 현장 운영팀', iconKey: 'award' },
       { label: '정밀 성과 분석 보고', iconKey: 'trending-up' },
     ],
+    positioningCtaHref: '/services',
     partnerLogos: [
       { name: '대전광역시', imageUrl: createTextLogoDataUrl('DAEJEON') },
       { name: '세종특별자치시', imageUrl: createTextLogoDataUrl('SEJONG') },
@@ -90,7 +91,10 @@ export const defaultSiteContent: SitePageContent = {
     primaryCtaHref: '/services',
     secondaryCtaLabel: '포트폴리오',
     secondaryCtaHref: '/cases',
+    resourcesCtaHref: '/resources',
+    partnersCtaHref: '/members',
     ctaButtonLabel: '지금 문의하기',
+    ctaButtonHref: '/faq',
     ctaImageUrl:
       'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=2000&q=80',
   },

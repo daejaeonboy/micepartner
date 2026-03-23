@@ -5,6 +5,7 @@ import { useSiteContent } from '../context/SiteContentContext';
 import { clearAdminToken, getAdminToken } from '../lib/adminSession';
 import { deleteAdminSession } from '../lib/api';
 import { SiteContentSplash } from './SiteContentSplash';
+import { FloatingActions } from './FloatingActions';
 
 function toOptimizedMegaImageUrl(url: string) {
   const raw = String(url || '').trim();
@@ -29,8 +30,8 @@ function toOptimizedMegaImageUrl(url: string) {
 
 export function SiteLayout() {
   const [isOpen, setIsOpen] = useState(false);
-  const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
-  const [hoveredMenuPath, setHoveredMenuPath] = useState<string | null>(null);
+  const [expandedMenuIndex, setExpandedMenuIndex] = useState<number | null>(null);
+  const [hoveredMenuIndex, setHoveredMenuIndex] = useState<number | null>(null);
   const [isEditorLoggedIn, setIsEditorLoggedIn] = useState(() => Boolean(getAdminToken()));
   const location = useLocation();
   const navigate = useNavigate();
@@ -64,7 +65,10 @@ export function SiteLayout() {
     return candidates.some((candidate) => location.pathname === candidate || location.pathname.startsWith(`${candidate}/`));
   };
 
-  const activeMenu = menus.headerItems.find(item => item.path === hoveredMenuPath);
+  const activeMenu =
+    hoveredMenuIndex !== null && hoveredMenuIndex >= 0 && hoveredMenuIndex < menus.headerItems.length
+      ? menus.headerItems[hoveredMenuIndex]
+      : null;
   const activeMenuImageSrc = activeMenu?.imageUrl ? toOptimizedMegaImageUrl(activeMenu.imageUrl) : '';
   const megaMenuImageUrls = useMemo(
     () =>
@@ -132,7 +136,7 @@ export function SiteLayout() {
     <div className="site-shell">
       <header 
         className="site-header"
-        onMouseLeave={() => setHoveredMenuPath(null)}
+        onMouseLeave={() => setHoveredMenuIndex(null)}
       >
         <div className="site-header__inner">
           <NavLink to="/" className="brand-mark" onClick={() => setIsOpen(false)}>
@@ -140,11 +144,11 @@ export function SiteLayout() {
           </NavLink>
 
           <nav className="site-nav" aria-label="주요 메뉴">
-            {menus.headerItems.map((item) => (
+            {menus.headerItems.map((item, index) => (
               <div 
-                key={item.path} 
+                key={`${item.path}-${index}`} 
                 className="site-nav__item"
-                onMouseEnter={() => setHoveredMenuPath(item.path)}
+                onMouseEnter={() => setHoveredMenuIndex(index)}
               >
                 <NavLink
                   to={item.path}
@@ -182,7 +186,7 @@ export function SiteLayout() {
         </div>
 
         {/* 메가 메뉴 패널 */}
-        <div className={`mega-menu ${hoveredMenuPath ? 'is-visible' : ''}`}>
+        <div className={`mega-menu ${hoveredMenuIndex !== null ? 'is-visible' : ''}`}>
           <div className="mega-menu__inner">
             {activeMenu && (
               <div className="mega-menu__split">
@@ -190,8 +194,13 @@ export function SiteLayout() {
                   <div className="mega-menu__column">
                     <div className="mega-menu__title">{activeMenu.label}</div>
                     <div className="mega-menu__list">
-                      {activeMenu.children?.map((child) => (
-                        <Link key={child.path} to={child.path} className="mega-menu__link" onClick={() => setHoveredMenuPath(null)}>
+                      {activeMenu.children?.map((child, childIndex) => (
+                        <Link
+                          key={`${child.path}-${childIndex}`}
+                          to={child.path}
+                          className="mega-menu__link"
+                          onClick={() => setHoveredMenuIndex(null)}
+                        >
                           {child.label}
                         </Link>
                       ))}
@@ -217,7 +226,7 @@ export function SiteLayout() {
       </header>
 
       {/* 메가 메뉴 활성 시 배경 어둡게 & 흐리게 처리하는 오버레이 */}
-      <div className={`site-header-overlay ${hoveredMenuPath ? 'is-visible' : ''}`} />
+      <div className={`site-header-overlay ${hoveredMenuIndex !== null ? 'is-visible' : ''}`} />
 
       {/* 모바일 메뉴 전용 배경 어둡게 (백드롭) */}
       <div 
@@ -235,14 +244,14 @@ export function SiteLayout() {
           </button>
         </div>
         <div className="mobile-nav__inner">
-          {menus.headerItems.map((item) => (
-            <div key={item.path} className="mobile-nav__group">
+          {menus.headerItems.map((item, index) => (
+            <div key={`${item.path}-${index}`} className="mobile-nav__group">
               <div 
                 className="mobile-nav__link-wrapper"
                 onClick={(e) => {
                   if (item.children?.length) {
                     e.preventDefault();
-                    setExpandedMenu(expandedMenu === item.path ? null : item.path);
+                    setExpandedMenuIndex(expandedMenuIndex === index ? null : index);
                   } else {
                     setIsOpen(false);
                   }
@@ -262,15 +271,20 @@ export function SiteLayout() {
                 {item.children?.length ? (
                   <ChevronDown
                     size={20}
-                    className={`mobile-nav__chevron ${expandedMenu === item.path ? 'is-open' : ''}`}
+                    className={`mobile-nav__chevron ${expandedMenuIndex === index ? 'is-open' : ''}`}
                   />
                 ) : null}
               </div>
               {item.children?.length ? (
-                <div className={`mobile-nav__sublist-wrapper ${expandedMenu === item.path ? 'is-open' : ''}`}>
+                <div className={`mobile-nav__sublist-wrapper ${expandedMenuIndex === index ? 'is-open' : ''}`}>
                   <div className="mobile-nav__sublist">
-                    {item.children.map((child) => (
-                      <Link key={child.path} to={child.path} className="mobile-nav__sublink" onClick={() => setIsOpen(false)}>
+                    {item.children.map((child, childIndex) => (
+                      <Link
+                        key={`${child.path}-${childIndex}`}
+                        to={child.path}
+                        className="mobile-nav__sublink"
+                        onClick={() => setIsOpen(false)}
+                      >
                         {child.label}
                       </Link>
                     ))}
@@ -328,12 +342,12 @@ export function SiteLayout() {
               <img src="/logo.png" alt="Micepartner Logo" className="footer-logo--dark" />
             </div>
             <nav className="footer-nav">
-              {menus.headerItems.map((item) => (
-                <div key={item.path} className="footer-nav__col">
+              {menus.headerItems.map((item, index) => (
+                <div key={`${item.path}-${index}`} className="footer-nav__col">
                   <h4>{item.label}</h4>
                   <ul>
-                    {item.children?.map((child) => (
-                      <li key={child.path}>
+                    {item.children?.map((child, childIndex) => (
+                      <li key={`${child.path}-${childIndex}`}>
                         <Link to={child.path}>{child.label}</Link>
                       </li>
                     ))}
@@ -375,6 +389,7 @@ export function SiteLayout() {
           </div>
         </div>
       </footer>
+      <FloatingActions />
     </div>
   );
 }

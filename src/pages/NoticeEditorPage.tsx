@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from '
 import { ChevronLeft, Plus, Trash2, Upload } from 'lucide-react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { PageMeta } from '../components/PageMeta';
+import { RichTextEditor } from '../components/RichTextEditor';
 import { useSiteContent } from '../context/SiteContentContext';
 import { getAdminToken } from '../lib/adminSession';
-import { saveSiteData, uploadAdminFile, uploadAdminImage } from '../lib/api';
+import { saveSiteDataWithTransform, uploadAdminFile, uploadAdminImage } from '../lib/api';
 import { createContentSlug, getTodayDateInputValue } from '../lib/contentUtils';
 import type { NoticeAttachment, NoticeItem } from '../types/siteContent';
 
@@ -100,7 +101,7 @@ export function NoticeEditorPage() {
       }));
     };
 
-  const handleBodyImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+  const handleCoverImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !adminToken) return;
 
@@ -117,6 +118,14 @@ export function NoticeEditorPage() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleInlineBodyImageUpload = async (file: File) => {
+    if (!adminToken) {
+      throw new Error('편집 권한 확인을 위해 다시 로그인해.');
+    }
+
+    return uploadAdminImage(file, 'resources/notices/inline', adminToken);
   };
 
   const handleAttachmentFileUpload = (index: number) => async (event: ChangeEvent<HTMLInputElement>) => {
@@ -140,10 +149,10 @@ export function NoticeEditorPage() {
     }
   };
 
-  const buildUniqueSlug = (title: string) => {
+  const buildUniqueSlug = (title: string, notices = siteData.content.resources.notices) => {
     const base = createContentSlug(title) || `notice-${Date.now()}`;
     const existingSlugs = new Set(
-      siteData.content.resources.notices
+      notices
         .filter((item) => item.slug !== currentNotice?.slug)
         .map((item) => item.slug),
     );
@@ -179,8 +188,7 @@ export function NoticeEditorPage() {
     setFeedback('');
 
     try {
-      const nextNotice: NoticeItem = {
-        slug: currentNotice?.slug || buildUniqueSlug(title),
+      const nextNoticeBase: Omit<NoticeItem, 'slug'> = {
         category: formState.category.trim() || '일반',
         title,
         date: formState.date,
@@ -195,26 +203,31 @@ export function NoticeEditorPage() {
           .filter((attachment) => attachment.label || attachment.url),
       };
 
-      const nextNotices = currentNotice
-        ? siteData.content.resources.notices.map((item) => (item.slug === currentNotice.slug ? nextNotice : item))
-        : [nextNotice, ...siteData.content.resources.notices];
+      let savedSlug = currentNotice?.slug || '';
+      const saved = await saveSiteDataWithTransform(adminToken, (current) => {
+        const resolvedSlug = currentNotice?.slug || buildUniqueSlug(title, current.content.resources.notices);
+        const nextNotice: NoticeItem = {
+          slug: resolvedSlug,
+          ...nextNoticeBase,
+        };
+        savedSlug = resolvedSlug;
 
-      const saved = await saveSiteData(
-        {
-          ...siteData,
+        return {
+          ...current,
           content: {
-            ...siteData.content,
+            ...current.content,
             resources: {
-              ...siteData.content.resources,
-              notices: nextNotices,
+              ...current.content.resources,
+              notices: currentNotice
+                ? current.content.resources.notices.map((item) => (item.slug === currentNotice.slug ? nextNotice : item))
+                : [nextNotice, ...current.content.resources.notices],
             },
           },
-        },
-        adminToken,
-      );
+        };
+      });
 
       updateSiteData(saved);
-      navigate(`/resources/notices/${nextNotice.slug}`, { replace: true });
+      navigate(`/resources/notices/${savedSlug}`, { replace: true });
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : '소식 저장에 실패했습니다.');
     } finally {
@@ -234,19 +247,16 @@ export function NoticeEditorPage() {
 
     setIsDeleting(true);
     try {
-      const saved = await saveSiteData(
-        {
-          ...siteData,
-          content: {
-            ...siteData.content,
-            resources: {
-              ...siteData.content.resources,
-              notices: siteData.content.resources.notices.filter((item) => item.slug !== currentNotice.slug),
-            },
+      const saved = await saveSiteDataWithTransform(adminToken, (current) => ({
+        ...current,
+        content: {
+          ...current.content,
+          resources: {
+            ...current.content.resources,
+            notices: current.content.resources.notices.filter((item) => item.slug !== currentNotice.slug),
           },
         },
-        adminToken,
-      );
+      }));
 
       updateSiteData(saved);
       navigate('/resources/notices', { replace: true });
@@ -310,7 +320,7 @@ export function NoticeEditorPage() {
                   <label className="button button--light" style={{ cursor: 'pointer', display: 'flex', gap: '8px', alignItems: 'center', height: '42px', padding: '0 16px' }}>
                     <Upload size={16} />
                     파일 선택
-                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleBodyImageUpload} />
+                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleCoverImageUpload} />
                   </label>
                 </div>
                 {formState.coverImageUrl && (
@@ -320,10 +330,18 @@ export function NoticeEditorPage() {
                 )}
               </div>
 
-              <label className="form-field">
-                <span>본문 내용</span>
-                <textarea value={formState.body} onChange={handleFieldChange('body')} rows={12} placeholder="소식 본문" />
-              </label>
+              <RichTextEditor
+                label="본문 내용"
+                value={formState.body}
+                onChange={(next) =>
+                  setFormState((current) => ({
+                    ...current,
+                    body: next,
+                  }))
+                }
+                onUploadImage={handleInlineBodyImageUpload}
+                minHeight={560}
+              />
 
               <section className="content-editor-repeat-list">
                 <div className="content-editor-repeat-list__header">

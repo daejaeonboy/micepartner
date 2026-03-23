@@ -4,15 +4,9 @@ import { useState, useRef, useEffect } from 'react';
 import { PageMeta } from '../components/PageMeta';
 import { useSiteContent } from '../context/SiteContentContext';
 import { getAdminToken } from '../lib/adminSession';
-import { saveSiteData } from '../lib/api';
+import { normalizeRichTextHtml } from '../lib/richText';
+import { saveSiteDataWithTransform } from '../lib/api';
 import { formatIsoLikeDate } from '../lib/contentUtils';
-
-function splitParagraphs(value: string) {
-  return String(value || '')
-    .split('\n\n')
-    .map((paragraph) => paragraph.trim())
-    .filter(Boolean);
-}
 
 export function NoticeDetailPage() {
   const { slug } = useParams();
@@ -46,20 +40,16 @@ export function NoticeDetailPage() {
     if (!confirmed) return;
 
     try {
-      const nextNotices = siteData.content.resources.notices.filter((item) => item.slug !== notice.slug);
-      const saved = await saveSiteData(
-        {
-          ...siteData,
-          content: {
-            ...siteData.content,
-            resources: {
-              ...siteData.content.resources,
-              notices: nextNotices,
-            },
+      const saved = await saveSiteDataWithTransform(adminToken, (current) => ({
+        ...current,
+        content: {
+          ...current.content,
+          resources: {
+            ...current.content.resources,
+            notices: current.content.resources.notices.filter((item) => item.slug !== notice.slug),
           },
         },
-        adminToken,
-      );
+      }));
 
       updateSiteData(saved);
       navigate('/resources/notices', { replace: true });
@@ -68,7 +58,7 @@ export function NoticeDetailPage() {
     }
   };
 
-  const paragraphs = splitParagraphs(notice.body);
+  const bodyHtml = normalizeRichTextHtml(notice.body);
 
   return (
     <>
@@ -181,18 +171,7 @@ export function NoticeDetailPage() {
                   />
                 </div>
               )}
-
-              {paragraphs.map((paragraph, idx) => {
-                const imgMatch = paragraph.match(/^!\[(.*?)\]\((.*?)\)$/);
-                if (imgMatch) {
-                  return (
-                    <div key={idx} className="notice-detail-card__inline-image">
-                      <img src={imgMatch[2]} alt={imgMatch[1]} style={{ width: '100%', margin: '20px 0' }} />
-                    </div>
-                  );
-                }
-                return <p key={idx}>{paragraph}</p>;
-              })}
+              {bodyHtml ? <div className="notice-detail-card__rich-copy" dangerouslySetInnerHTML={{ __html: bodyHtml }} /> : null}
             </div>
           </article>
         </div>
