@@ -9,6 +9,7 @@ import { getAdminToken } from '../lib/adminSession';
 import { formatMonthDay } from '../lib/contentUtils';
 import { getMenuLinkedCategories } from '../lib/menuCategories';
 import { fadeUp } from '../lib/motion';
+import { createBreadcrumbJsonLd, truncateText } from '../lib/seo';
 
 const PAGE_SIZE = 9;
 
@@ -77,10 +78,22 @@ export function CaseStudiesPage() {
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE,
   );
+  const seoTitle = 'MICE 행사 운영 포트폴리오';
+  const seoDescription = truncateText(
+    '컨퍼런스, 포럼, 세미나, 기업행사 등 마이스파트너의 MICE 행사 운영 사례와 포트폴리오를 확인할 수 있습니다.',
+  );
 
   return (
     <>
-      <PageMeta title="포트폴리오" description={copy.introDescription} />
+      <PageMeta
+        title={seoTitle}
+        description={seoDescription}
+        canonicalPath="/cases"
+        jsonLd={createBreadcrumbJsonLd([
+          { name: '홈', path: '/' },
+          { name: '포트폴리오', path: '/cases' },
+        ])}
+      />
       <PageHeaderBlock
         title={copy.introTitle}
         description={copy.introDescription}

@@ -78,6 +78,8 @@ export function PublicEditorLoginPage() {
       <PageMeta
         title="로그인"
         description="운영사례와 정보성 콘텐츠를 프론트에서 직접 작성하거나 수정하기 위한 로그인 페이지입니다."
+        canonicalPath="/login"
+        noIndex
       />
       <main className="public-login-page">
         <section className="public-login-page__inner">

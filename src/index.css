@@ -4244,6 +4244,18 @@ a {
   background: #36c15a;
 }
 
+.section2-slider__viewport {
+  border-radius: 8px;
+}
+
+.section2-slider__track.is-dragging {
+  cursor: grabbing;
+}
+
+.section2-slider__dots {
+  bottom: 24px !important;
+}
+
 .home-slider__aspect {
   aspect-ratio: 21 / 9;
   border-radius: 8px !important;

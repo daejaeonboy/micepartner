@@ -5,6 +5,7 @@ import { PageMeta } from '../components/PageMeta';
 import { PageHeaderBlock, PageSectionBlock } from '../components/PublicPageTemplate';
 import { useSiteContent } from '../context/SiteContentContext';
 import { getAdminToken } from '../lib/adminSession';
+import { createBreadcrumbJsonLd, truncateText } from '../lib/seo';
 
 const PAGE_SIZE = 10;
 
@@ -55,10 +56,22 @@ export function ResourcesPage() {
   const paginatedNotices = useMemo(() => {
     return filteredNotices.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   }, [filteredNotices, currentPage]);
+  const seoTitle = '공지사항';
+  const seoDescription = truncateText(
+    '마이스파트너의 공지사항, 운영 소식, 업데이트 내용을 확인할 수 있는 정보센터 페이지입니다.',
+  );
 
   return (
     <>
-      <PageMeta title={copy.noticesTitle} description={copy.noticesDescription} />
+      <PageMeta
+        title={seoTitle}
+        description={seoDescription}
+        canonicalPath="/resources/notices"
+        jsonLd={createBreadcrumbJsonLd([
+          { name: '홈', path: '/' },
+          { name: '공지사항', path: '/resources/notices' },
+        ])}
+      />
       
       <PageHeaderBlock
         title={copy.noticesTitle}

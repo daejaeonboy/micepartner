@@ -7,6 +7,12 @@ import { getAdminToken } from '../lib/adminSession';
 import { normalizeRichTextHtml } from '../lib/richText';
 import { saveSiteDataWithTransform } from '../lib/api';
 import { formatIsoLikeDate } from '../lib/contentUtils';
+import {
+  createArticleJsonLd,
+  createBreadcrumbJsonLd,
+  toSchemaDate,
+  truncateText,
+} from '../lib/seo';
 
 export function ResourceDetailPage() {
   const { slug } = useParams();
@@ -60,10 +66,35 @@ export function ResourceDetailPage() {
 
   const bodyHtml = normalizeRichTextHtml(resource.body || resource.description);
   const detailDate = formatIsoLikeDate(resource.updatedAt);
+  const metaDescription = truncateText(resource.description);
+  const structuredData = [
+    createBreadcrumbJsonLd([
+      { name: '홈', path: '/' },
+      { name: '자료실', path: '/resources/files' },
+      { name: resource.title, path: `/resources/files/${resource.slug}` },
+    ]),
+    createArticleJsonLd({
+      headline: resource.title,
+      description: metaDescription,
+      path: `/resources/files/${resource.slug}`,
+      image: resource.coverImageUrl,
+      datePublished: toSchemaDate(resource.updatedAt),
+      dateModified: toSchemaDate(resource.updatedAt),
+      section: resource.type,
+    }),
+  ];
 
   return (
     <>
-      <PageMeta title={`${resource.title} 자료`} description={resource.description} />
+      <PageMeta
+        title={`${resource.title} 자료`}
+        description={metaDescription}
+        canonicalPath={`/resources/files/${resource.slug}`}
+        image={resource.coverImageUrl}
+        imageAlt={resource.title}
+        type="article"
+        jsonLd={structuredData}
+      />
       <section className="notice-detail-page">
         <div className="notice-detail-page__inner">
           <Link to="/resources/files" className="notice-detail-page__back">

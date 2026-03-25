@@ -115,7 +115,12 @@ export function AdminLoginPage() {
 
   return (
     <>
-      <PageMeta title="마이스파트너 관리자 로그인" description="마이스파트너 관리자 계정으로 로그인하거나 초기 계정을 생성하는 전용 페이지입니다." />
+      <PageMeta
+        title="관리자 로그인"
+        description="마이스파트너 관리자 계정으로 로그인하거나 초기 계정을 생성하는 전용 페이지입니다."
+        canonicalPath="/admin/login"
+        noIndex
+      />
       <main className="admin-login-shell">
         <motion.section {...fadeUp} className="admin-login-panel">
           <div className="admin-login-brand">

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
     "dev:api": "node server/index.js",
-    "build": "vite build",
+    "build": "vite build && node scripts/prerender-seo.mjs",
     "preview": "vite preview",
     "firebase:serve": "firebase emulators:start --only hosting,firestore,auth",
     "firebase:deploy": "firebase deploy --only hosting",

@@ -2377,7 +2377,12 @@ export function AdminPage() {
 
   return (
     <>
-      <PageMeta title="마이스파트너 관리자" description="마이스파트너 홈페이지와 문의를 관리하는 관리자 대시보드입니다." />
+      <PageMeta
+        title="관리자"
+        description="마이스파트너 홈페이지와 문의를 관리하는 관리자 대시보드입니다."
+        canonicalPath="/admin"
+        noIndex
+      />
       {!adminToken || !adminUser ? null : (
         <main className="admin-dashboard">
           <aside className="admin-sidebar">

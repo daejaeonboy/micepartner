@@ -14,6 +14,11 @@ import { PageMeta } from '../components/PageMeta';
 import { SectionHeading } from '../components/SectionHeading';
 import { useSiteContent } from '../context/SiteContentContext';
 import { fadeUp } from '../lib/motion';
+import {
+  createOrganizationJsonLd,
+  createWebSiteJsonLd,
+  truncateText,
+} from '../lib/seo';
 
 type ServicePreviewSlide = {
   title: string;
@@ -248,7 +253,7 @@ function HomeHeroSlider({
   badge: string;
 }) {
   const transitionDurationMs = 1380;
-  const autoplayDelayMs = 8200;
+  const autoplayDelayMs = 4000;
   const [current, setCurrent] = useState(0);
   const [isHovering, setIsHovering] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
@@ -431,6 +436,7 @@ function HomeHeroSlider({
   const previousIndex = current === 0 ? slides.length - 1 : current - 1;
   const nextIndex = (current + 1) % slides.length;
   const idleIndices = Array.from(new Set([previousIndex, nextIndex, current]));
+  const activeDotIndex = transitionState?.to ?? current;
 
   return (
     <section className="home-hero">
@@ -539,9 +545,9 @@ function HomeHeroSlider({
                 <button
                   key={`${slide.title}-${index}`}
                   type="button"
-                  className={`home-hero-slider__dot${index === current ? ' is-active' : ''}`}
+                  className={`home-hero-slider__dot${index === activeDotIndex ? ' is-active' : ''}`}
                   aria-label={`${index + 1}번 배너 보기`}
-                  aria-pressed={index === current}
+                  aria-pressed={index === activeDotIndex}
                   onClick={() => goTo(index)}
                 />
               ))}
@@ -562,6 +568,7 @@ function HomeHeroSlider({
 }
 
 function Section2Slider({ slides }: { slides: { img: string; title: string; desc: string }[] }) {
+  const autoplayDelayMs = 4000;
   const [current, setCurrent] = useState(0);
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -573,6 +580,22 @@ function Section2Slider({ slides }: { slides: { img: string; title: string; desc
   });
   const prev = useCallback(() => setCurrent((c) => (c === 0 ? slides.length - 1 : c - 1)), [slides.length]);
   const next = useCallback(() => setCurrent((c) => (c === slides.length - 1 ? 0 : c + 1)), [slides.length]);
+
+  useEffect(() => {
+    setCurrent((value) => Math.min(value, Math.max(slides.length - 1, 0)));
+  }, [slides.length]);
+
+  useEffect(() => {
+    if (slides.length < 2 || isDragging) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setCurrent((value) => (value === slides.length - 1 ? 0 : value + 1));
+    }, autoplayDelayMs);
+
+    return () => window.clearTimeout(timer);
+  }, [autoplayDelayMs, current, isDragging, slides.length]);
 
   const handlePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -622,12 +645,12 @@ function Section2Slider({ slides }: { slides: { img: string; title: string; desc
   }, [next, prev]);
 
   return (
-    <div className="home-slider-container" style={{ position: 'relative' }}>
+    <div className="home-slider-container section2-slider" style={{ position: 'relative' }}>
       <div
+        className="section2-slider__viewport"
         style={{
           position: 'relative',
           overflow: 'hidden',
-          borderRadius: 0,
           userSelect: 'none',
           WebkitUserSelect: 'none',
         }}
@@ -637,6 +660,7 @@ function Section2Slider({ slides }: { slides: { img: string; title: string; desc
         onPointerCancel={handlePointerEnd}
       >
         <div
+          className={`section2-slider__track${isDragging ? ' is-dragging' : ''}`}
           style={{
             display: 'flex',
             transition: isDragging ? 'none' : 'transform 0.5s cubic-bezier(0.22,1,0.36,1)',
@@ -676,29 +700,32 @@ function Section2Slider({ slides }: { slides: { img: string; title: string; desc
             </div>
           ))}
         </div>
-        {/* Dots inside image */}
-        <div
-          className="home-slider__dots-container home-hero-slider__dots"
-          style={{
-            position: 'absolute',
-            bottom: '20px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 10,
-          }}
-          aria-label="대전 MICE 슬라이드 선택"
-        >
-          {slides.map((slide, i) => (
-            <button
-              key={`${slide.title}-${i}`}
-              type="button"
-              className={`home-hero-slider__dot${i === current ? ' is-active' : ''}`}
-              onClick={() => setCurrent(i)}
-              aria-label={`${i + 1}번 슬라이드 보기`}
-              aria-pressed={i === current}
-            />
-          ))}
-        </div>
+        {slides.length > 1 ? (
+          <>
+            <div
+              className="home-slider__dots-container home-hero-slider__dots section2-slider__dots"
+              style={{
+                position: 'absolute',
+                bottom: '20px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 10,
+              }}
+              aria-label="대전 MICE 슬라이드 선택"
+            >
+              {slides.map((slide, i) => (
+                <button
+                  key={`${slide.title}-${i}`}
+                  type="button"
+                  className={`home-hero-slider__dot${i === current ? ' is-active' : ''}`}
+                  onClick={() => setCurrent(i)}
+                  aria-label={`${i + 1}번 슬라이드 보기`}
+                  aria-pressed={i === current}
+                />
+              ))}
+            </div>
+          </>
+        ) : null}
       </div>
       {/* Arrow controls */}
       <div className="home-slider__controls">
@@ -862,6 +889,19 @@ export function HomePage() {
   const finalCtaTitle = copy.ctaTitle || '고객센터';
   const finalCtaDescription = copy.ctaDescription || '';
   const finalCtaLabel = home.ctaButtonLabel || '1:1 문의하기';
+  const homeSeoTitle = 'MICE 행사기획·운영 전문';
+  const homeSeoDescription = truncateText(
+    '마이스파트너는 MICE 행사기획, 컨퍼런스, 포럼, 세미나, 기업행사 운영 사례와 협업 프로세스를 소개합니다.',
+  );
+  const homeJsonLd = [
+    createOrganizationJsonLd({
+      description: homeSeoDescription,
+      telephone: siteContent.support.phone,
+    }),
+    createWebSiteJsonLd({
+      description: homeSeoDescription,
+    }),
+  ];
   const sections = {
     hero: (
       <HomeHeroSlider slides={resolvedHeroSlides} eyebrow={heroEyebrow} badge={home.heroBadge} />
@@ -1092,7 +1132,13 @@ export function HomePage() {
 
   return (
     <>
-      <PageMeta title="메인" description={resolvedHeroSlides[0]?.description || copy.heroDescription} />
+      <PageMeta
+        title={homeSeoTitle}
+        description={homeSeoDescription}
+        canonicalPath="/"
+        image={primaryHeroImageUrl}
+        jsonLd={homeJsonLd}
+      />
       {Object.entries(sections).map(([sectionKey, section]) => (
         <Fragment key={sectionKey}>{section}</Fragment>
       ))}

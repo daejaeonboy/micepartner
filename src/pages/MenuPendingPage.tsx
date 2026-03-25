@@ -14,6 +14,7 @@ export function MenuPendingPage({ label, parentLabel }: MenuPendingPageProps) {
       <PageMeta
         title={`${label} 준비중`}
         description={`${label} 페이지는 현재 준비 중입니다. 메뉴 구조는 먼저 열어 두었고 콘텐츠를 순차적으로 연결하고 있습니다.`}
+        noIndex
       />
       <PageIntro
         eyebrow={parentLabel || 'Coming Soon'}
@@ -29,7 +30,7 @@ export function MenuPendingPage({ label, parentLabel }: MenuPendingPageProps) {
             <Link to="/" className="button button--primary">
               홈으로 이동
             </Link>
-            <Link to="/contact" className="button button--ghost">
+            <Link to="/faq" className="button button--ghost">
               문의하기
             </Link>
           </div>

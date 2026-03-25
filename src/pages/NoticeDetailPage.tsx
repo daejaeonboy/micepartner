@@ -7,6 +7,12 @@ import { getAdminToken } from '../lib/adminSession';
 import { normalizeRichTextHtml } from '../lib/richText';
 import { saveSiteDataWithTransform } from '../lib/api';
 import { formatIsoLikeDate } from '../lib/contentUtils';
+import {
+  createArticleJsonLd,
+  createBreadcrumbJsonLd,
+  toSchemaDate,
+  truncateText,
+} from '../lib/seo';
 
 export function NoticeDetailPage() {
   const { slug } = useParams();
@@ -59,10 +65,35 @@ export function NoticeDetailPage() {
   };
 
   const bodyHtml = normalizeRichTextHtml(notice.body);
+  const metaDescription = truncateText(notice.summary);
+  const structuredData = [
+    createBreadcrumbJsonLd([
+      { name: '홈', path: '/' },
+      { name: '공지사항', path: '/resources/notices' },
+      { name: notice.title, path: `/resources/notices/${notice.slug}` },
+    ]),
+    createArticleJsonLd({
+      headline: notice.title,
+      description: metaDescription,
+      path: `/resources/notices/${notice.slug}`,
+      image: notice.coverImageUrl,
+      datePublished: toSchemaDate(notice.date),
+      dateModified: toSchemaDate(notice.date),
+      section: notice.category,
+    }),
+  ];
 
   return (
     <>
-      <PageMeta title={`${notice.title} 공지`} description={notice.summary} />
+      <PageMeta
+        title={`${notice.title} 공지사항`}
+        description={metaDescription}
+        canonicalPath={`/resources/notices/${notice.slug}`}
+        image={notice.coverImageUrl}
+        imageAlt={notice.title}
+        type="article"
+        jsonLd={structuredData}
+      />
       <section className="notice-detail-page">
         <div className="notice-detail-page__inner">
           <Link to="/resources/notices" className="notice-detail-page__back">
@@ -162,10 +193,10 @@ export function NoticeDetailPage() {
             </div>
             <div className="notice-detail-card__body">
               {/* 대표 이미지를 본문 최상단에 배치 */}
-              {(notice as any).coverImageUrl && (
+              {notice.coverImageUrl && (
                 <div className="notice-detail-card__inline-image" style={{ marginBottom: '40px' }}>
                   <img 
-                    src={(notice as any).coverImageUrl} 
+                    src={notice.coverImageUrl} 
                     alt={notice.title} 
                     style={{ width: '100%', display: 'block' }} 
                   />

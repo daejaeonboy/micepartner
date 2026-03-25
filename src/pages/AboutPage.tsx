@@ -5,6 +5,7 @@ import { useSiteContent } from '../context/SiteContentContext';
 import { getAdminToken } from '../lib/adminSession';
 import { getAboutResolvedPage, getAboutSidebarItems, normalizeMenuPath } from '../lib/aboutConfig';
 import { normalizeRichTextHtml, stripHtmlTags } from '../lib/richText';
+import { createBreadcrumbJsonLd, truncateText } from '../lib/seo';
 
 export function AboutPage() {
   const location = useLocation();
@@ -27,12 +28,29 @@ export function AboutPage() {
   };
   const pageTitle = String(currentPage.title || '').trim();
   const headingText = pageTitle || (currentPage.key === 'intro' ? '' : currentPage.label);
+  const seoTitle = currentPage.key === 'intro' ? '회사소개' : `${currentPage.label} · 회사소개`;
+  const seoDescription = truncateText(stripHtmlTags(currentPage.description));
+  const breadcrumbItems =
+    currentPage.key === 'intro'
+      ? [
+          { name: '홈', path: '/' },
+          { name: '회사소개', path: '/about' },
+        ]
+      : [
+          { name: '홈', path: '/' },
+          { name: '회사소개', path: '/about' },
+          { name: currentPage.label, path: currentPage.path },
+        ];
 
   return (
     <>
       <PageMeta
-        title={`${currentPage.label} | ${aboutMenu?.label || '회사 소개'}`}
-        description={stripHtmlTags(currentPage.description)}
+        title={seoTitle}
+        description={seoDescription}
+        canonicalPath={currentPage.path}
+        image={currentPage.imageUrl}
+        imageAlt={`${currentPage.label} 대표 이미지`}
+        jsonLd={createBreadcrumbJsonLd(breadcrumbItems)}
       />
 
       <section className="visual-page-header">

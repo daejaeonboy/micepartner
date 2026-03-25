@@ -7,6 +7,7 @@ import { getAdminToken } from '../lib/adminSession';
 import { saveSiteDataWithTransform } from '../lib/api';
 import { formatIsoLikeDate, resolveMemberCompanySlug } from '../lib/contentUtils';
 import { normalizeRichTextHtml } from '../lib/richText';
+import { createBreadcrumbJsonLd, truncateText } from '../lib/seo';
 
 export function MemberDetailPage() {
   const { slug } = useParams();
@@ -71,10 +72,31 @@ export function MemberDetailPage() {
       ].join('\n\n'),
   );
   const detailDate = formatIsoLikeDate(company.updatedAt);
+  const metaDescription = truncateText(
+    [
+      company.category,
+      company.secondaryCategory,
+      company.address,
+      company.phone,
+    ]
+      .filter(Boolean)
+      .join(' · '),
+  );
 
   return (
     <>
-      <PageMeta title={`${company.name} 협력업체`} description={`${company.category} ${company.secondaryCategory}`.trim()} />
+      <PageMeta
+        title={`${company.name} 협력업체`}
+        description={metaDescription}
+        canonicalPath={`/members/${resolveMemberCompanySlug(company)}`}
+        image={company.logoUrl}
+        imageAlt={company.name}
+        jsonLd={createBreadcrumbJsonLd([
+          { name: '홈', path: '/' },
+          { name: '협력업체', path: '/members' },
+          { name: company.name, path: `/members/${resolveMemberCompanySlug(company)}` },
+        ])}
+      />
       <section className="notice-detail-page">
         <div className="notice-detail-page__inner">
           <Link to="/members" className="notice-detail-page__back">

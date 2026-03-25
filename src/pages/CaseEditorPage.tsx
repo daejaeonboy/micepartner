@@ -282,6 +282,7 @@ export function CaseEditorPage() {
       <PageMeta
         title={isEditMode ? `${currentEntry?.title || '운영사례'} 수정` : '운영사례 등록'}
         description="운영사례 편집 화면입니다."
+        noIndex
       />
       <main className="content-editor-page">
         <section className="content-editor-page__inner">

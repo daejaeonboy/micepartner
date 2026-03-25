@@ -1,14 +1,28 @@
 import { PageMeta } from '../components/PageMeta';
 import { useSiteContent } from '../context/SiteContentContext';
+import { createBreadcrumbJsonLd, truncateText } from '../lib/seo';
 
 export function ServicesPage() {
   const { siteCopy, siteContent } = useSiteContent();
   const copy = siteCopy.services;
   const content = siteContent.services;
+  const seoTitle = 'MICE 행사기획·운영 서비스';
+  const seoDescription = truncateText(
+    '마이스파트너의 MICE 행사기획, 현장 운영, 협력 파트너 연계, 실행 프로세스를 한눈에 확인할 수 있는 서비스 소개 페이지입니다.',
+  );
 
   return (
     <>
-      <PageMeta title="서비스" description={copy.introDescription} />
+      <PageMeta
+        title={seoTitle}
+        description={seoDescription}
+        canonicalPath="/services"
+        image={content.heroImageUrl}
+        jsonLd={createBreadcrumbJsonLd([
+          { name: '홈', path: '/' },
+          { name: '서비스', path: '/services' },
+        ])}
+      />
       <section className="service-plain-hero">
         <div className="service-plain-hero__inner">
           <p className="section-eyebrow">{content.introEyebrow}</p>

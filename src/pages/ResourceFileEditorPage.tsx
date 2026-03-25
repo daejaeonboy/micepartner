@@ -227,6 +227,7 @@ export function ResourceFileEditorPage() {
       <PageMeta
         title={isEditMode ? `${currentResource?.title || '자료'} 수정` : '자료 등록'}
         description="정보센터 자료를 프론트에서 직접 등록하거나 수정하는 편집 화면입니다."
+        noIndex
       />
       <main className="content-editor-page">
         <section className="content-editor-page__inner">

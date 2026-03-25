@@ -7,11 +7,19 @@
     "rules": "storage.rules"
   },
   "hosting": {
+    "site": "micepartner",
     "public": "dist",
     "ignore": [
       "firebase.json",
       "**/.*",
       "**/node_modules/**"
+    ],
+    "redirects": [
+      {
+        "source": "/services",
+        "destination": "/cases",
+        "type": 301
+      }
     ],
     "rewrites": [
       {

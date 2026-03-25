@@ -1,2 +1,16 @@
 User-agent: *
 Allow: /
+Disallow: /admin
+Disallow: /login
+Disallow: /cases/new
+Disallow: /cases/*/edit
+Disallow: /resources/notices/new
+Disallow: /resources/notices/*/edit
+Disallow: /resources/files/new
+Disallow: /resources/files/*/edit
+Disallow: /members/new
+Disallow: /members/*/edit
+Disallow: /about/edit
+Disallow: /about/*/edit
+
+Sitemap: https://micepartner.co.kr/sitemap.xml

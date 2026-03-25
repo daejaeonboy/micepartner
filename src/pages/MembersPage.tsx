@@ -9,6 +9,7 @@ import { getAdminToken } from '../lib/adminSession';
 import { formatMonthDay, resolveMemberCompanySlug } from '../lib/contentUtils';
 import { getMenuLinkedCategories } from '../lib/menuCategories';
 import { fadeUp } from '../lib/motion';
+import { createBreadcrumbJsonLd, truncateText } from '../lib/seo';
 
 const PAGE_SIZE = 12;
 
@@ -80,10 +81,22 @@ export function MembersPage() {
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE,
   );
+  const seoTitle = '협력업체 네트워크';
+  const seoDescription = truncateText(
+    '마이스파트너와 함께하는 협력업체 네트워크와 분야별 파트너 정보를 확인할 수 있습니다.',
+  );
 
   return (
     <>
-      <PageMeta title="MICE 회원" description={copy.introDescription} />
+      <PageMeta
+        title={seoTitle}
+        description={seoDescription}
+        canonicalPath="/members"
+        jsonLd={createBreadcrumbJsonLd([
+          { name: '홈', path: '/' },
+          { name: '협력업체', path: '/members' },
+        ])}
+      />
       <PageHeaderBlock
         title={copy.introTitle}
         description={copy.introDescription}

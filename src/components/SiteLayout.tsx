@@ -383,7 +383,7 @@ export function SiteLayout() {
             <div className="footer-family-sites">
               <select className="family-site-select">
                 <option value="">관련 사이트</option>
-                <option value="https://www.micepartner.co.kr">마이스파트너</option>
+                <option value="https://micepartner.co.kr">마이스파트너</option>
               </select>
             </div>
           </div>

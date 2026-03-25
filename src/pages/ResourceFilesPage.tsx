@@ -5,6 +5,7 @@ import { PageMeta } from '../components/PageMeta';
 import { PageHeaderBlock, PageSectionBlock } from '../components/PublicPageTemplate';
 import { useSiteContent } from '../context/SiteContentContext';
 import { getAdminToken } from '../lib/adminSession';
+import { createBreadcrumbJsonLd, truncateText } from '../lib/seo';
 
 const PAGE_SIZE = 10;
 
@@ -64,10 +65,22 @@ export function ResourceFilesPage() {
     if (!trimmed) return '-';
     return trimmed.replaceAll('-', '. ');
   };
+  const seoTitle = '자료실';
+  const seoDescription = truncateText(
+    '회사소개서, 서비스 소개서, 포트폴리오 자료 등 마이스파트너의 다운로드 자료를 모아둔 자료실입니다.',
+  );
 
   return (
     <>
-      <PageMeta title={copy.downloadsTitle || '자료실'} description={copy.downloadsDescription || ''} />
+      <PageMeta
+        title={seoTitle}
+        description={seoDescription}
+        canonicalPath="/resources/files"
+        jsonLd={createBreadcrumbJsonLd([
+          { name: '홈', path: '/' },
+          { name: '자료실', path: '/resources/files' },
+        ])}
+      />
       
       <PageHeaderBlock
         title={copy.downloadsTitle}

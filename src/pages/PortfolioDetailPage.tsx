@@ -6,7 +6,13 @@ import { useSiteContent } from '../context/SiteContentContext';
 import { getAdminToken } from '../lib/adminSession';
 import { saveSiteDataWithTransform } from '../lib/api';
 import { formatIsoLikeDate } from '../lib/contentUtils';
-import { normalizeRichTextHtml } from '../lib/richText';
+import { normalizeRichTextHtml, stripHtmlTags } from '../lib/richText';
+import {
+  createArticleJsonLd,
+  createBreadcrumbJsonLd,
+  toSchemaDate,
+  truncateText,
+} from '../lib/seo';
 
 export function PortfolioDetailPage() {
   const { slug } = useParams();
@@ -58,14 +64,48 @@ export function PortfolioDetailPage() {
     }
   };
 
-  const metaTitle = entry.seoTitle || `${entry.title} 포트폴리오`;
-  const metaDescription = entry.seoDescription || entry.cardDescription;
+  const rawSeoTitle = String(entry.seoTitle || '').trim();
+  const metaTitle =
+    rawSeoTitle && rawSeoTitle !== entry.title
+      ? rawSeoTitle
+      : /사례/.test(entry.title)
+        ? entry.title
+        : /운영/.test(entry.title)
+          ? `${entry.title} 사례`
+          : `${entry.title} 행사 운영 사례`;
+  const metaDescription = truncateText(
+    entry.seoDescription || entry.cardDescription || stripHtmlTags(entry.summary),
+  );
   
   const bodyHtml = normalizeRichTextHtml(entry.summary || '');
+  const structuredData = [
+    createBreadcrumbJsonLd([
+      { name: '홈', path: '/' },
+      { name: '포트폴리오', path: '/cases' },
+      { name: entry.title, path: `/cases/${entry.slug}` },
+    ]),
+    createArticleJsonLd({
+      headline: entry.title,
+      description: metaDescription,
+      path: `/cases/${entry.slug}`,
+      image: entry.coverImageUrl,
+      datePublished: toSchemaDate(entry.updatedAt || entry.period),
+      dateModified: toSchemaDate(entry.updatedAt || entry.period),
+      section: entry.category,
+    }),
+  ];
 
   return (
     <>
-      <PageMeta title={metaTitle} description={metaDescription} />
+      <PageMeta
+        title={metaTitle}
+        description={metaDescription}
+        canonicalPath={`/cases/${entry.slug}`}
+        image={entry.coverImageUrl}
+        imageAlt={entry.title}
+        type="article"
+        jsonLd={structuredData}
+      />
       <section className="notice-detail-page">
         <div className="notice-detail-page__inner">
           <Link to="/cases" className="notice-detail-page__back">

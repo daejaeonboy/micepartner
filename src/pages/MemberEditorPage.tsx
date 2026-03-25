@@ -277,6 +277,7 @@ export function MemberEditorPage() {
       <PageMeta
         title={isEditMode ? `${currentCompany?.name || '협력업체'} 수정` : '협력업체 등록'}
         description="협력업체 편집 화면입니다."
+        noIndex
       />
       <main className="content-editor-page">
         <section className="content-editor-page__inner">

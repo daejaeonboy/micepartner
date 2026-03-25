@@ -5,11 +5,17 @@ import { PageHeaderBlock, PageSectionBlock } from '../components/PublicPageTempl
 import { PageMeta } from '../components/PageMeta';
 import { useSiteContent } from '../context/SiteContentContext';
 import { fadeUp } from '../lib/motion';
+import { createBreadcrumbJsonLd, createFaqJsonLd, truncateText } from '../lib/seo';
 
 export function FAQPage() {
   const { siteCopy, siteContent } = useSiteContent();
   const copy = siteCopy.support;
   const content = siteContent.support;
+  const seoTitle = '자주 묻는 질문';
+  const seoDescription = truncateText(
+    'MICE 행사 운영, 견적, 상담, 준비 절차와 관련해 자주 묻는 질문을 정리한 고객센터 페이지입니다.',
+  );
+  const faqJsonLd = content.faqs.length > 0 ? createFaqJsonLd(content.faqs) : null;
   
   const [activeCategory, setActiveCategory] = useState(
     content.faqCategories[0] || '',
@@ -26,7 +32,18 @@ export function FAQPage() {
 
   return (
     <>
-      <PageMeta title={copy.introTitle} description={copy.introDescription} />
+      <PageMeta
+        title={seoTitle}
+        description={seoDescription}
+        canonicalPath="/faq"
+        jsonLd={[
+          createBreadcrumbJsonLd([
+            { name: '홈', path: '/' },
+            { name: '자주 묻는 질문', path: '/faq' },
+          ]),
+          ...(faqJsonLd ? [faqJsonLd] : []),
+        ]}
+      />
       
       <PageHeaderBlock
         title={copy.introTitle}

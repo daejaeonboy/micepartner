@@ -272,6 +272,7 @@ export function NoticeEditorPage() {
       <PageMeta
         title={isEditMode ? `${currentNotice?.title || '소식'} 수정` : '소식 등록'}
         description="정보센터 소식 편집 화면입니다."
+        noIndex
       />
       <main className="content-editor-page">
         <section className="content-editor-page__inner">

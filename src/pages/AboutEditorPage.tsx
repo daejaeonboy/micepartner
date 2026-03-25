@@ -156,7 +156,11 @@ export function AboutEditorPage() {
 
   return (
     <>
-      <PageMeta title={`${currentPage.label} 수정`} description={`${currentPage.label} 페이지를 수정하는 편집 화면이야.`} />
+      <PageMeta
+        title={`${currentPage.label} 수정`}
+        description={`${currentPage.label} 페이지를 수정하는 편집 화면이야.`}
+        noIndex
+      />
       <main className="content-editor-page">
         <section className="content-editor-page__inner">
           <div className="content-editor-page__intro">
