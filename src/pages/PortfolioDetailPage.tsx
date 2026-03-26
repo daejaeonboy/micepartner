@@ -201,14 +201,9 @@ export function PortfolioDetailPage() {
 
           <article className="notice-detail-card">
             <div className="notice-detail-card__body">
-              {/* 대표 이미지(썸네일)를 본문 최상단에 배치 */}
               {entry.coverImageUrl && (
-                <div className="notice-detail-card__inline-image" style={{ marginBottom: '40px' }}>
-                  <img 
-                    src={entry.coverImageUrl} 
-                    alt={entry.title} 
-                    style={{ width: '100%', borderRadius: 0, display: 'block' }} 
-                  />
+                <div className="portfolio-detail-card__image-box">
+                  <img src={entry.coverImageUrl} alt={entry.title} />
                 </div>
               )}
 
