@@ -30,6 +30,8 @@ type HeroBannerSlide = {
   title: string;
   description: string;
   imageUrl: string;
+  mobileImageUrl: string;
+  hasText: boolean;
 };
 
 function ServicePreviewSlider({ items }: { items: ServicePreviewSlide[] }) {
@@ -243,6 +245,46 @@ function ServicePreviewSlider({ items }: { items: ServicePreviewSlide[] }) {
   );
 }
 
+function HeroSlideMedia({ slide, priority }: { slide: HeroBannerSlide; priority: boolean }) {
+  const altText = slide.title || '메인 비주얼';
+
+  return (
+    <picture className="home-hero__media">
+      {slide.mobileImageUrl ? <source media="(max-width: 768px)" srcSet={slide.mobileImageUrl} /> : null}
+      <img
+        src={slide.imageUrl}
+        alt={altText}
+        className="home-hero__image"
+        loading={priority ? 'eager' : 'lazy'}
+        decoding="async"
+      />
+    </picture>
+  );
+}
+
+function HeroSlideOverlay({
+  slide,
+  eyebrow,
+  badge,
+}: {
+  slide: HeroBannerSlide;
+  eyebrow: string;
+  badge: string;
+}) {
+  if (!slide.hasText) {
+    return null;
+  }
+
+  return (
+    <div className="home-hero__overlay">
+      {eyebrow ? <p className="home-hero__eyebrow">{eyebrow}</p> : null}
+      {slide.title ? <h1 style={{ whiteSpace: 'pre-line' }}>{slide.title}</h1> : null}
+      {slide.description ? <p>{slide.description}</p> : null}
+      {badge ? <p className="home-hero__badge">{badge}</p> : null}
+    </div>
+  );
+}
+
 function HomeHeroSlider({
   slides,
   eyebrow,
@@ -278,12 +320,10 @@ function HomeHeroSlider({
 
   useEffect(() => {
     slides.forEach((slide) => {
-      if (!slide.imageUrl) {
-        return;
-      }
-
-      const image = new Image();
-      image.src = slide.imageUrl;
+      [slide.imageUrl, slide.mobileImageUrl].filter(Boolean).forEach((url) => {
+        const image = new Image();
+        image.src = url;
+      });
     });
   }, [slides]);
 
@@ -484,19 +524,8 @@ function HomeHeroSlider({
                     }}
                     aria-hidden={!isActive}
                   >
-                    <img
-                      src={slide.imageUrl}
-                      alt={slide.title || '메인 비주얼'}
-                      className="home-hero__image"
-                      loading={index === 0 ? 'eager' : 'lazy'}
-                      decoding="async"
-                    />
-                    <div className="home-hero__overlay">
-                      <p className="home-hero__eyebrow">{eyebrow}</p>
-                      <h1 style={{ whiteSpace: 'pre-line' }}>{slide.title}</h1>
-                      <p>{slide.description}</p>
-                      <p className="home-hero__badge">{badge}</p>
-                    </div>
+                    <HeroSlideMedia slide={slide} priority={index === 0} />
+                    <HeroSlideOverlay slide={slide} eyebrow={eyebrow} badge={badge} />
                   </article>
                 );
               })
@@ -520,19 +549,8 @@ function HomeHeroSlider({
                     }}
                     aria-hidden={index !== current}
                   >
-                    <img
-                      src={slide.imageUrl}
-                      alt={slide.title || '메인 비주얼'}
-                      className="home-hero__image"
-                      loading={index === 0 ? 'eager' : 'lazy'}
-                      decoding="async"
-                    />
-                    <div className="home-hero__overlay">
-                      <p className="home-hero__eyebrow">{eyebrow}</p>
-                      <h1 style={{ whiteSpace: 'pre-line' }}>{slide.title}</h1>
-                      <p>{slide.description}</p>
-                      <p className="home-hero__badge">{badge}</p>
-                    </div>
+                    <HeroSlideMedia slide={slide} priority={index === 0} />
+                    <HeroSlideOverlay slide={slide} eyebrow={eyebrow} badge={badge} />
                   </article>
                 );
               })}
@@ -840,15 +858,24 @@ export function HomePage() {
     imageUrl: item.imageUrl || placeholderImages[index],
   }));
   const heroSlides = (Array.isArray(home.heroSlides) ? home.heroSlides : [])
-    .map((slide, index) => ({
-      title: String(slide?.title || '').trim() || copy.heroTitle,
-      description: String(slide?.description || '').trim() || copy.heroDescription,
-      imageUrl:
-        String(slide?.imageUrl || '').trim() ||
-        home.heroImageUrl ||
-        placeholderImages[index % placeholderImages.length],
-    }))
-    .filter((slide) => slide.title || slide.description || slide.imageUrl);
+    .map((slide, index) => {
+      const title = String(slide?.title || '').trim();
+      const description = String(slide?.description || '').trim();
+      const desktopImageUrl = String(slide?.imageUrl || '').trim();
+      const mobileImageUrl = String(slide?.mobileImageUrl || '').trim();
+      const fallbackImageUrl = home.heroImageUrl || placeholderImages[index % placeholderImages.length];
+
+      return {
+        title,
+        description,
+        imageUrl: desktopImageUrl || mobileImageUrl || fallbackImageUrl,
+        mobileImageUrl: mobileImageUrl || desktopImageUrl || fallbackImageUrl,
+        hasText: Boolean(title || description),
+        isConfigured: Boolean(title || description || desktopImageUrl || mobileImageUrl),
+      };
+    })
+    .filter((slide) => slide.isConfigured)
+    .map(({ isConfigured, ...slide }) => slide);
   const resolvedHeroSlides =
     heroSlides.length > 0
       ? heroSlides
@@ -857,9 +884,12 @@ export function HomePage() {
             title: copy.heroTitle,
             description: copy.heroDescription,
             imageUrl: home.heroImageUrl || placeholderImages[0],
+            mobileImageUrl: home.heroImageUrl || placeholderImages[0],
+            hasText: Boolean(String(copy.heroTitle || '').trim() || String(copy.heroDescription || '').trim()),
           },
         ];
-  const primaryHeroImageUrl = resolvedHeroSlides[0]?.imageUrl || home.heroImageUrl || placeholderImages[0];
+  const primaryHeroImageUrl =
+    resolvedHeroSlides[0]?.imageUrl || resolvedHeroSlides[0]?.mobileImageUrl || home.heroImageUrl || placeholderImages[0];
   const servicePreviewImageUrl =
     home.servicePreviewImageUrl ||
     siteContent.about.heroImageUrl ||

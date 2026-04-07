@@ -812,16 +812,18 @@ export function normalizeSiteData(data: Record<string, unknown> | null | undefin
         title: String(normalized.copy.home.heroTitle || '').trim(),
         description: String(normalized.copy.home.heroDescription || '').trim(),
         imageUrl: String(normalized.content.home.heroImageUrl || '').trim(),
+        mobileImageUrl: '',
       },
-    ].filter((item) => item.title || item.description || item.imageUrl);
+    ].filter((item) => item.title || item.description || item.imageUrl || item.mobileImageUrl);
     const normalizedHeroSlides = Array.isArray(normalized.content.home.heroSlides)
       ? normalized.content.home.heroSlides
           .map((item) => ({
             title: String(item?.title || '').trim(),
             description: String(item?.description || '').trim(),
             imageUrl: String(item?.imageUrl || '').trim(),
+            mobileImageUrl: String(item?.mobileImageUrl || '').trim(),
           }))
-          .filter((item) => item.title || item.description || item.imageUrl)
+          .filter((item) => item.title || item.description || item.imageUrl || item.mobileImageUrl)
       : [];
     const heroSlides =
       hasPersistedHeroSlides && normalizedHeroSlides.length > 0
@@ -831,7 +833,9 @@ export function normalizeSiteData(data: Record<string, unknown> | null | undefin
           : normalizedHeroSlides.length > 0
             ? normalizedHeroSlides
             : defaultSiteData.content.home.heroSlides;
-    const primaryHeroImageUrl = String(heroSlides[0]?.imageUrl || normalized.content.home.heroImageUrl || '').trim();
+    const primaryHeroImageUrl = String(
+      heroSlides[0]?.imageUrl || heroSlides[0]?.mobileImageUrl || normalized.content.home.heroImageUrl || '',
+    ).trim();
 
     const aboutCopy = {
       ...normalized.copy.about,

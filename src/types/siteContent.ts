@@ -24,6 +24,7 @@ export type HeroSlide = {
   title: string;
   description: string;
   imageUrl: string;
+  mobileImageUrl: string;
 };
 
 export type TimelineItem = {

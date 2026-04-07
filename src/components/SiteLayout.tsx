@@ -37,10 +37,6 @@ export function SiteLayout() {
   const navigate = useNavigate();
   const { siteCopy, siteContent, ready } = useSiteContent();
 
-  if (!ready) {
-    return <SiteContentSplash />;
-  }
-
   const footer = siteContent.footer;
   const menus = siteContent.menus;
 
@@ -83,6 +79,10 @@ export function SiteLayout() {
   );
 
   useEffect(() => {
+    if (!ready) {
+      return;
+    }
+
     const preloadLinks: HTMLLinkElement[] = [];
     const preloadedImages: HTMLImageElement[] = [];
 
@@ -113,7 +113,11 @@ export function SiteLayout() {
         image.src = '';
       });
     };
-  }, [megaMenuImageUrls]);
+  }, [megaMenuImageUrls, ready]);
+
+  if (!ready) {
+    return <SiteContentSplash />;
+  }
 
   const handleEditorLogout = async () => {
     const token = getAdminToken();
