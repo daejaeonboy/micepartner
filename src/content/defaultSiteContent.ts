@@ -28,6 +28,7 @@ export const defaultSiteContent: SitePageContent = {
           'https://images.unsplash.com/photo-1540575861501-7c0351a773a5?auto=format&fit=crop&w=2000&q=80',
         mobileImageUrl:
           'https://images.unsplash.com/photo-1540575861501-7c0351a773a5?auto=format&fit=crop&w=2000&q=80',
+        linkUrl: '',
       },
       {
         title: '브랜드와 목적에 맞는 운영 구조 설계',
@@ -37,6 +38,7 @@ export const defaultSiteContent: SitePageContent = {
           'https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=2000&q=80',
         mobileImageUrl:
           'https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=2000&q=80',
+        linkUrl: '',
       },
       {
         title: '현장 데이터와 결과까지 이어지는 관리',
@@ -46,6 +48,7 @@ export const defaultSiteContent: SitePageContent = {
           'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=2000&q=80',
         mobileImageUrl:
           'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=2000&q=80',
+        linkUrl: '',
       },
     ],
     heroPanelStatus: '운영 중인 행사',

@@ -351,6 +351,7 @@ const textFieldLabels: Record<string, string> = {
   detail: '세부 설명',
   title: '제목',
   description: '설명',
+  linkUrl: '배너 클릭 링크',
   step: '단계',
   primaryCtaLabel: '기본 버튼 문구',
   primaryCtaHref: '기본 버튼 링크',
@@ -771,6 +772,7 @@ function createEmptyHeroSlide() {
     description: '',
     imageUrl: '',
     mobileImageUrl: '',
+    linkUrl: '',
   };
 }
 

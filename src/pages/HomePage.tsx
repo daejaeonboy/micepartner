@@ -6,6 +6,7 @@ import {
   useCallback,
   useEffect,
   useRef,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
@@ -31,8 +32,31 @@ type HeroBannerSlide = {
   description: string;
   imageUrl: string;
   mobileImageUrl: string;
+  linkUrl: string;
   hasText: boolean;
 };
+
+function resolveHeroSlideLink(linkUrl: string) {
+  const trimmedLink = String(linkUrl || '').trim();
+
+  if (!trimmedLink || /^(javascript|data):/i.test(trimmedLink)) {
+    return '';
+  }
+
+  if (
+    trimmedLink.startsWith('/') ||
+    trimmedLink.startsWith('#') ||
+    /^(https?:\/\/|mailto:|tel:)/i.test(trimmedLink)
+  ) {
+    return trimmedLink;
+  }
+
+  if (/^[\w/-]+$/i.test(trimmedLink) && !trimmedLink.includes('.')) {
+    return `/${trimmedLink.replace(/^\/+/, '')}`;
+  }
+
+  return `https://${trimmedLink}`;
+}
 
 function ServicePreviewSlider({ items }: { items: ServicePreviewSlide[] }) {
   const trackRef = useRef<HTMLDivElement | null>(null);
@@ -285,6 +309,25 @@ function HeroSlideOverlay({
   );
 }
 
+function HeroSlideContent({
+  slide,
+  priority,
+  eyebrow,
+  badge,
+}: {
+  slide: HeroBannerSlide;
+  priority: boolean;
+  eyebrow: string;
+  badge: string;
+}) {
+  return (
+    <>
+      <HeroSlideMedia slide={slide} priority={priority} />
+      <HeroSlideOverlay slide={slide} eyebrow={eyebrow} badge={badge} />
+    </>
+  );
+}
+
 function HomeHeroSlider({
   slides,
   eyebrow,
@@ -296,6 +339,7 @@ function HomeHeroSlider({
 }) {
   const transitionDurationMs = 1380;
   const autoplayDelayMs = 4000;
+  const clickNavigationThreshold = 12;
   const [current, setCurrent] = useState(0);
   const [isHovering, setIsHovering] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
@@ -309,10 +353,20 @@ function HomeHeroSlider({
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef({
     pointerId: -1,
+    pointerType: 'mouse',
     startX: 0,
     deltaX: 0,
     dragging: false,
   });
+  const suppressClickRef = useRef(false);
+
+  const getDragThreshold = useCallback((viewportWidth: number, pointerType: string) => {
+    if (pointerType === 'mouse') {
+      return Math.max(28, Math.min(72, viewportWidth * 0.06));
+    }
+
+    return Math.max(48, Math.min(110, viewportWidth * 0.1));
+  }, []);
 
   useEffect(() => {
     setCurrent((value) => Math.min(value, Math.max(slides.length - 1, 0)));
@@ -416,10 +470,12 @@ function HomeHeroSlider({
 
     dragRef.current = {
       pointerId: event.pointerId,
+      pointerType: event.pointerType || 'mouse',
       startX: event.clientX,
       deltaX: 0,
       dragging: true,
     };
+    suppressClickRef.current = false;
 
     viewport.setPointerCapture(event.pointerId);
     setIsDragging(true);
@@ -436,7 +492,20 @@ function HomeHeroSlider({
     const clampedOffset = Math.max(-viewportWidth * 0.92, Math.min(viewportWidth * 0.92, nextOffset));
 
     dragRef.current.deltaX = clampedOffset;
+    if (Math.abs(clampedOffset) >= clickNavigationThreshold) {
+      suppressClickRef.current = true;
+    }
     setDragOffset(clampedOffset);
+  }, [clickNavigationThreshold]);
+
+  const navigateToSlideLink = useCallback((linkUrl: string) => {
+    const resolvedLink = resolveHeroSlideLink(linkUrl);
+
+    if (!resolvedLink || typeof window === 'undefined') {
+      return;
+    }
+
+    window.location.assign(resolvedLink);
   }, []);
 
   const handlePointerEnd = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
@@ -451,11 +520,15 @@ function HomeHeroSlider({
     }
 
     const deltaX = dragRef.current.deltaX;
-    const threshold = Math.max(60, viewport.clientWidth * 0.12);
+    const threshold = getDragThreshold(viewport.clientWidth, dragRef.current.pointerType);
 
     dragRef.current.dragging = false;
     setIsDragging(false);
     setDragOffset(0);
+
+    if (event.type === 'pointercancel') {
+      return;
+    }
 
     if (Math.abs(deltaX) < threshold) {
       return;
@@ -467,7 +540,41 @@ function HomeHeroSlider({
     }
 
     startTransition(current === 0 ? slides.length - 1 : current - 1, -1);
-  }, [current, slides.length, startTransition]);
+  }, [current, getDragThreshold, slides.length, startTransition]);
+
+  const handleSlideClick = useCallback(
+    (linkUrl: string) => {
+      const resolvedLink = resolveHeroSlideLink(linkUrl);
+
+      if (!resolvedLink || transitionState || suppressClickRef.current) {
+        suppressClickRef.current = false;
+        return;
+      }
+
+      navigateToSlideLink(resolvedLink);
+    },
+    [navigateToSlideLink, transitionState],
+  );
+
+  const handleViewportClick = useCallback(() => {
+    handleSlideClick(slides[current]?.linkUrl || '');
+  }, [current, handleSlideClick, slides]);
+
+  const handleSlideKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLElement>, linkUrl: string) => {
+      if (!linkUrl) {
+        return;
+      }
+
+      if (event.key !== 'Enter' && event.key !== ' ') {
+        return;
+      }
+
+      event.preventDefault();
+      handleSlideClick(linkUrl);
+    },
+    [handleSlideClick],
+  );
 
   if (!slides[0]) {
     return null;
@@ -495,12 +602,14 @@ function HomeHeroSlider({
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerEnd}
           onPointerCancel={handlePointerEnd}
+          onClick={handleViewportClick}
         >
           {transitionState
             ? [transitionState.from, transitionState.to].map((index) => {
                 const slide = slides[index];
                 const isActive = index === transitionState.to;
                 const isIncoming = index === transitionState.to;
+                const slideLinkUrl = resolveHeroSlideLink(slide.linkUrl);
                 const transform =
                   transitionState.phase === 'setup'
                     ? isIncoming
@@ -513,7 +622,9 @@ function HomeHeroSlider({
                 return (
                   <article
                     key={`${slide.title}-${index}`}
-                    className={`home-hero__frame home-hero__slide home-hero--centered${isActive ? ' is-active' : ''}`}
+                    className={`home-hero__frame home-hero__slide home-hero--centered${isActive ? ' is-active' : ''}${slideLinkUrl ? ' home-hero__frame--interactive' : ''}`}
+                    role={slideLinkUrl ? 'link' : undefined}
+                    tabIndex={slideLinkUrl ? (isActive ? 0 : -1) : undefined}
                     style={{
                       transform,
                       transition:
@@ -523,16 +634,24 @@ function HomeHeroSlider({
                       zIndex: isIncoming ? 3 : 2,
                     }}
                     aria-hidden={!isActive}
+                    aria-label={slideLinkUrl ? (slide.title ? `${slide.title} 페이지로 이동` : '메인 배너 페이지로 이동') : undefined}
+                    onKeyDown={slideLinkUrl ? (event) => handleSlideKeyDown(event, slideLinkUrl) : undefined}
                   >
-                    <HeroSlideMedia slide={slide} priority={index === 0} />
-                    <HeroSlideOverlay slide={slide} eyebrow={eyebrow} badge={badge} />
+                    <HeroSlideContent
+                      slide={slide}
+                      priority={index === 0}
+                      eyebrow={eyebrow}
+                      badge={badge}
+                    />
                   </article>
                 );
               })
             : idleIndices.map((index) => {
                 const slide = slides[index];
+                const slideLinkUrl = resolveHeroSlideLink(slide.linkUrl);
+                const isCurrentSlide = index === current;
                 const transform =
-                  index === current
+                  isCurrentSlide
                     ? `translate3d(${dragOffset}px, 0, 0)`
                     : index === previousIndex
                       ? `translate3d(calc(-100% + ${dragOffset}px), 0, 0)`
@@ -541,16 +660,24 @@ function HomeHeroSlider({
                 return (
                   <article
                     key={`${slide.title}-${index}`}
-                    className={`home-hero__frame home-hero__slide home-hero--centered${index === current ? ' is-active' : ''}`}
+                    className={`home-hero__frame home-hero__slide home-hero--centered${isCurrentSlide ? ' is-active' : ''}${slideLinkUrl ? ' home-hero__frame--interactive' : ''}`}
+                    role={slideLinkUrl ? 'link' : undefined}
+                    tabIndex={slideLinkUrl ? (isCurrentSlide ? 0 : -1) : undefined}
                     style={{
                       transform,
                       transition: isDragging ? 'none' : 'transform 620ms cubic-bezier(0.22, 1, 0.36, 1)',
-                      zIndex: index === current ? 3 : 2,
+                      zIndex: isCurrentSlide ? 3 : 2,
                     }}
-                    aria-hidden={index !== current}
+                    aria-hidden={!isCurrentSlide}
+                    aria-label={slideLinkUrl ? (slide.title ? `${slide.title} 페이지로 이동` : '메인 배너 페이지로 이동') : undefined}
+                    onKeyDown={slideLinkUrl ? (event) => handleSlideKeyDown(event, slideLinkUrl) : undefined}
                   >
-                    <HeroSlideMedia slide={slide} priority={index === 0} />
-                    <HeroSlideOverlay slide={slide} eyebrow={eyebrow} badge={badge} />
+                    <HeroSlideContent
+                      slide={slide}
+                      priority={index === 0}
+                      eyebrow={eyebrow}
+                      badge={badge}
+                    />
                   </article>
                 );
               })}
@@ -863,6 +990,7 @@ export function HomePage() {
       const description = String(slide?.description || '').trim();
       const desktopImageUrl = String(slide?.imageUrl || '').trim();
       const mobileImageUrl = String(slide?.mobileImageUrl || '').trim();
+      const linkUrl = String(slide?.linkUrl || '').trim();
       const fallbackImageUrl = home.heroImageUrl || placeholderImages[index % placeholderImages.length];
 
       return {
@@ -870,8 +998,9 @@ export function HomePage() {
         description,
         imageUrl: desktopImageUrl || mobileImageUrl || fallbackImageUrl,
         mobileImageUrl: mobileImageUrl || desktopImageUrl || fallbackImageUrl,
+        linkUrl,
         hasText: Boolean(title || description),
-        isConfigured: Boolean(title || description || desktopImageUrl || mobileImageUrl),
+        isConfigured: Boolean(title || description || desktopImageUrl || mobileImageUrl || linkUrl),
       };
     })
     .filter((slide) => slide.isConfigured)
@@ -885,6 +1014,7 @@ export function HomePage() {
             description: copy.heroDescription,
             imageUrl: home.heroImageUrl || placeholderImages[0],
             mobileImageUrl: home.heroImageUrl || placeholderImages[0],
+            linkUrl: '',
             hasText: Boolean(String(copy.heroTitle || '').trim() || String(copy.heroDescription || '').trim()),
           },
         ];
@@ -972,13 +1102,7 @@ export function HomePage() {
           gap: '24px',
           width: '100%'
         }}>
-          <h2 style={{ 
-            fontSize: 'clamp(30px, 4vw, 44px)', 
-            fontWeight: 400, 
-            letterSpacing: '-0.04em',
-            margin: 0,
-            color: 'var(--text-strong)'
-          }}>
+          <h2 className="home-main-section-title">
             {copy.positioningTitle || '대전 MICE'}
           </h2>
           <Link to={positioningCtaHref} style={{ 
@@ -1006,13 +1130,7 @@ export function HomePage() {
           gap: '24px',
           width: '100%'
         }}>
-          <h2 style={{ 
-            fontSize: 'clamp(30px, 4vw, 44px)', 
-            fontWeight: 400, 
-            letterSpacing: '-0.04em',
-            margin: 0,
-            color: 'var(--text-strong)'
-          }}>
+          <h2 className="home-main-section-title">
             {copy.portfolioPreviewTitle}
           </h2>
           <Link to={portfolioPreviewHref} style={{ 
@@ -1040,13 +1158,7 @@ export function HomePage() {
           gap: '24px',
           width: '100%'
         }}>
-          <h2 style={{ 
-            fontSize: 'clamp(30px, 4vw, 44px)', 
-            fontWeight: 400, 
-            letterSpacing: '-0.04em',
-            margin: 0,
-            color: 'var(--text-strong)'
-          }}>
+          <h2 className="home-main-section-title">
             {copy.resourcesPreviewTitle}
           </h2>
           <Link to={resourcesCtaHref} style={{ 
@@ -1092,13 +1204,7 @@ export function HomePage() {
           gap: '24px',
           width: '100%'
         }}>
-          <h2 style={{ 
-            fontSize: 'clamp(30px, 4vw, 44px)', 
-            fontWeight: 400, 
-            letterSpacing: '-0.04em',
-            margin: 0,
-            color: 'var(--text-strong)'
-          }}>
+          <h2 className="home-main-section-title">
             {copy.processTitle}
           </h2>
           <Link to={partnersCtaHref} style={{ 

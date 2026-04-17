@@ -813,6 +813,7 @@ export function normalizeSiteData(data: Record<string, unknown> | null | undefin
         description: String(normalized.copy.home.heroDescription || '').trim(),
         imageUrl: String(normalized.content.home.heroImageUrl || '').trim(),
         mobileImageUrl: '',
+        linkUrl: '',
       },
     ].filter((item) => item.title || item.description || item.imageUrl || item.mobileImageUrl);
     const normalizedHeroSlides = Array.isArray(normalized.content.home.heroSlides)
@@ -822,8 +823,9 @@ export function normalizeSiteData(data: Record<string, unknown> | null | undefin
             description: String(item?.description || '').trim(),
             imageUrl: String(item?.imageUrl || '').trim(),
             mobileImageUrl: String(item?.mobileImageUrl || '').trim(),
+            linkUrl: String(item?.linkUrl || '').trim(),
           }))
-          .filter((item) => item.title || item.description || item.imageUrl || item.mobileImageUrl)
+          .filter((item) => item.title || item.description || item.imageUrl || item.mobileImageUrl || item.linkUrl)
       : [];
     const heroSlides =
       hasPersistedHeroSlides && normalizedHeroSlides.length > 0
