@@ -170,7 +170,7 @@ function buildRoutes(data) {
   routes.push({
     path: '/about',
     title: '회사소개',
-    description: normalizeText(data.copy?.about?.introDescription) || DEFAULT_DESCRIPTION,
+    description: stripHtml(data.copy?.about?.introDescription) || DEFAULT_DESCRIPTION,
     image: data.content?.about?.heroImageUrl || homeImage,
     jsonLd: [
       createBreadcrumbJsonLd([
@@ -182,7 +182,7 @@ function buildRoutes(data) {
   routes.push({
     path: '/about/overview',
     title: `${normalizeText(aboutChildren[0]?.label) || '회사 개요'} · 회사소개`,
-    description: normalizeText(data.copy?.about?.identityDescription) || DEFAULT_DESCRIPTION,
+    description: stripHtml(data.copy?.about?.identityDescription) || DEFAULT_DESCRIPTION,
     image: data.content?.about?.identityImageUrl || data.content?.about?.heroImageUrl || homeImage,
     jsonLd: [
       createBreadcrumbJsonLd([
@@ -195,7 +195,7 @@ function buildRoutes(data) {
   routes.push({
     path: '/about/business',
     title: `${normalizeText(aboutChildren[1]?.label) || '사업영역'} · 회사소개`,
-    description: normalizeText(data.copy?.about?.strengthDescription) || DEFAULT_DESCRIPTION,
+    description: stripHtml(data.copy?.about?.strengthDescription) || DEFAULT_DESCRIPTION,
     image: data.content?.about?.strengthImageUrl || data.content?.about?.heroImageUrl || homeImage,
     jsonLd: [
       createBreadcrumbJsonLd([
@@ -208,7 +208,7 @@ function buildRoutes(data) {
   routes.push({
     path: '/about/process',
     title: `${normalizeText(aboutChildren[2]?.label) || '운영 프로세스'} · 회사소개`,
-    description: normalizeText(data.copy?.about?.processDescription) || DEFAULT_DESCRIPTION,
+    description: stripHtml(data.copy?.about?.processDescription) || DEFAULT_DESCRIPTION,
     image: data.content?.about?.processImageUrl || data.content?.about?.heroImageUrl || homeImage,
     jsonLd: [
       createBreadcrumbJsonLd([

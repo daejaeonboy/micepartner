@@ -296,6 +296,13 @@ export function ResourceFileEditorPage() {
                   }))
                 }
                 onUploadImage={handleInlineBodyImageUpload}
+                selectedCoverImageUrl={formState.coverImageUrl}
+                onSelectCoverImage={(imageUrl) =>
+                  setFormState((current) => ({
+                    ...current,
+                    coverImageUrl: imageUrl,
+                  }))
+                }
                 minHeight={560}
               />
 

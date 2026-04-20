@@ -50,51 +50,56 @@ const COLLECTIONS = {
 
 const SITE_DATA_DOC_ID = 'current';
 const VALID_STATUSES = new Set<InquiryStatus>(['new', 'in_progress', 'completed']);
-export const ADMIN_APPROVAL_PENDING_MESSAGE = '관리자 승인 대기 중입니다. 승인 후 다시 로그인해 주세요.';
-const SITE_DATA_STALE_SAVE_MESSAGE = '다른 화면의 변경사항이 먼저 저장됐어. 새로고침한 뒤 다시 저장해 줘.';
+const APPROVED_ADMIN_PROFILE_CACHE_TTL_MS = 5 * 60 * 1000;
+const IMAGE_UPLOAD_MAX_DIMENSION = 1920;
+const IMAGE_UPLOAD_TARGET_BYTES = 900 * 1024;
+const IMAGE_UPLOAD_MIN_SIZE_TO_COMPRESS = 350 * 1024;
+const approvedAdminProfileCache = new Map<string, { profile: AdminProfileDoc; expiresAt: number }>();
+export const ADMIN_APPROVAL_PENDING_MESSAGE = '愿由ъ옄 ?뱀씤 ?湲?以묒엯?덈떎. ?뱀씤 ???ㅼ떆 濡쒓렇?명빐 二쇱꽭??';
+const SITE_DATA_STALE_SAVE_MESSAGE = '?ㅻⅨ ?붾㈃??蹂寃쎌궗??씠 癒쇱? ??λ릱?? ?덈줈怨좎묠?????ㅼ떆 ??ν빐 以?';
 const LEGACY_ABOUT_COPY = {
-  introTitle: '회사소개 페이지는 회사가 누구인지보다 어떤 방식으로 일하는지까지 보여줘야 합니다.',
+  introTitle: '?뚯궗?뚭컻 ?섏씠吏???뚯궗媛 ?꾧뎄?몄?蹂대떎 ?대뼡 諛⑹떇?쇰줈 ?쇳븯?붿?源뚯? 蹂댁뿬以섏빞 ?⑸땲??',
   introDescription:
-    '이 페이지는 마이스파트너의 방향, 일하는 방식, 강점을 정리하는 구조로 두었고, 실제 회사 문구는 이후 직접 교체할 수 있게 placeholder로 남겨두었습니다.',
-  identityTitle: '회사소개에서는 핵심 메시지와 일하는 기준이 먼저 보여야 합니다.',
+    '???섏씠吏??留덉씠?ㅽ뙆?몃꼫??諛⑺뼢, ?쇳븯??諛⑹떇, 媛뺤젏???뺣━?섎뒗 援ъ“濡??먯뿀怨? ?ㅼ젣 ?뚯궗 臾멸뎄???댄썑 吏곸젒 援먯껜?????덇쾶 placeholder濡??④꺼?먯뿀?듬땲??',
+  identityTitle: '?뚯궗?뚭컻?먯꽌???듭떖 硫붿떆吏? ?쇳븯??湲곗???癒쇱? 蹂댁뿬???⑸땲??',
   identityDescription:
-    '실제 소개 문구는 이후 바꾸더라도, 어떤 성격의 회사인지와 어떤 서비스를 중심으로 일하는지는 먼저 구조로 잡아두는 편이 좋습니다.',
-  identityCardTitle: '회사 소개 문장 Placeholder',
-  ownerCardTitle: '직접 교체할 항목',
-  strengthTitle: '회사소개에는 강점과 협업 방식이 같이 들어가야 신뢰가 생깁니다.',
-  strengthDescription: '연혁만 나열하는 방식보다, 고객이 왜 이 회사를 선택해야 하는지 바로 이해할 수 있게 구성하는 편이 더 좋습니다.',
-  processTitle: '문의부터 운영까지 어떤 흐름으로 일하는지 정리해 두면 회사 소개가 훨씬 선명해집니다.',
-  processDescription: '실제 회사소개 페이지에서도 협업 절차가 보이면 고객이 문의 전부터 기대치를 맞추기 쉬워집니다.',
+    '?ㅼ젣 ?뚭컻 臾멸뎄???댄썑 諛붽씀?붾씪?? ?대뼡 ?깃꺽???뚯궗?몄?? ?대뼡 ?쒕퉬?ㅻ? 以묒떖?쇰줈 ?쇳븯?붿???癒쇱? 援ъ“濡??≪븘?먮뒗 ?몄씠 醫뗭뒿?덈떎.',
+  identityCardTitle: '?뚯궗 ?뚭컻 臾몄옣 Placeholder',
+  ownerCardTitle: '吏곸젒 援먯껜????ぉ',
+  strengthTitle: '?뚯궗?뚭컻?먮뒗 媛뺤젏怨??묒뾽 諛⑹떇??媛숈씠 ?ㅼ뼱媛???좊ː媛 ?앷퉩?덈떎.',
+  strengthDescription: '?고쁺留??섏뿴?섎뒗 諛⑹떇蹂대떎, 怨좉컼???????뚯궗瑜??좏깮?댁빞 ?섎뒗吏 諛붾줈 ?댄빐?????덇쾶 援ъ꽦?섎뒗 ?몄씠 ??醫뗭뒿?덈떎.',
+  processTitle: '臾몄쓽遺???댁쁺源뚯? ?대뼡 ?먮쫫?쇰줈 ?쇳븯?붿? ?뺣━???먮㈃ ?뚯궗 ?뚭컻媛 ?⑥뵮 ?좊챸?댁쭛?덈떎.',
+  processDescription: '?ㅼ젣 ?뚯궗?뚭컻 ?섏씠吏?먯꽌???묒뾽 ?덉감媛 蹂댁씠硫?怨좉컼??臾몄쓽 ?꾨???湲곕?移섎? 留욎텛湲??ъ썙吏묐땲??',
 };
 const LEGACY_ABOUT_CONTENT = {
   introEyebrow: 'About',
   identityEyebrow: 'Who We Are',
   strengthEyebrow: 'Why Mice Partner',
   processEyebrow: 'Working Process',
-  messageTitle: '마이스파트너는 현장에서 바로 작동하는 운영 구조를 만드는 팀입니다.',
+  messageTitle: '留덉씠?ㅽ뙆?몃꼫???꾩옣?먯꽌 諛붾줈 ?묐룞?섎뒗 ?댁쁺 援ъ“瑜?留뚮뱶????낅땲??',
   messageBody:
-    '우리는 행사 소개 문구를 예쁘게 정리하는 것보다 실제 운영 흐름이 끊기지 않게 만드는 일을 더 중요하게 생각합니다.\n\n고객이 처음 문의하는 순간부터 행사 종료 후 결과를 정리하는 시점까지, 커뮤니케이션과 현장 운영이 같은 기준으로 움직이는 구조를 만듭니다.',
+    '?곕━???됱궗 ?뚭컻 臾멸뎄瑜??덉걯寃??뺣━?섎뒗 寃껊낫???ㅼ젣 ?댁쁺 ?먮쫫???딄린吏 ?딄쾶 留뚮뱶???쇱쓣 ??以묒슂?섍쾶 ?앷컖?⑸땲??\n\n怨좉컼??泥섏쓬 臾몄쓽?섎뒗 ?쒓컙遺???됱궗 醫낅즺 ??寃곌낵瑜??뺣━?섎뒗 ?쒖젏源뚯?, 而ㅻ??덉??댁뀡怨??꾩옣 ?댁쁺??媛숈? 湲곗??쇰줈 ?吏곸씠??援ъ“瑜?留뚮벊?덈떎.',
   identityPoints: [
-    '행사 목적과 일정에 맞는 운영 범위를 먼저 정리합니다.',
-    '현장 등록, 체크인, 협력사 커뮤니케이션처럼 실제 실행 구간을 기준으로 제안합니다.',
-    '행사 종료 후 결과 정리와 다음 운영 개선까지 연결될 수 있게 기록을 남깁니다.',
+    '?됱궗 紐⑹쟻怨??쇱젙??留욌뒗 ?댁쁺 踰붿쐞瑜?癒쇱? ?뺣━?⑸땲??',
+    '?꾩옣 ?깅줉, 泥댄겕?? ?묐젰??而ㅻ??덉??댁뀡泥섎읆 ?ㅼ젣 ?ㅽ뻾 援ш컙??湲곗??쇰줈 ?쒖븞?⑸땲??',
+    '?됱궗 醫낅즺 ??寃곌낵 ?뺣━? ?ㅼ쓬 ?댁쁺 媛쒖꽑源뚯? ?곌껐?????덇쾶 湲곕줉???④퉩?덈떎.',
   ],
   highlights: [
     {
-      title: '지역 기반 실행력',
-      description: '대전과 충청권 행사 운영 환경을 이해한 상태에서 빠르게 협력 체계를 만들 수 있습니다.',
+      title: '吏??湲곕컲 ?ㅽ뻾??',
+      description: '??꾧낵 異⑹껌沅??됱궗 ?댁쁺 ?섍꼍???댄빐???곹깭?먯꽌 鍮좊Ⅴ寃??묐젰 泥닿퀎瑜?留뚮뱾 ???덉뒿?덈떎.',
       iconKey: 'map',
       imageUrl: '',
     },
     {
-      title: '운영 커뮤니케이션',
-      description: '주최기관, 협력사, 스태프가 같은 기준으로 움직이도록 정보 구조를 정리합니다.',
+      title: '?댁쁺 而ㅻ??덉??댁뀡',
+      description: '二쇱턀湲곌?, ?묐젰?? ?ㅽ깭?꾧? 媛숈? 湲곗??쇰줈 ?吏곸씠?꾨줉 ?뺣낫 援ъ“瑜??뺣━?⑸땲??',
       iconKey: 'message',
       imageUrl: '',
     },
     {
-      title: '웹과 현장의 연결',
-      description: '웹사이트 문구, 참가자 안내, 현장 운영이 끊기지 않도록 한 흐름으로 설계합니다.',
+      title: '?밴낵 ?꾩옣???곌껐',
+      description: '?뱀궗?댄듃 臾멸뎄, 李멸????덈궡, ?꾩옣 ?댁쁺???딄린吏 ?딅룄濡????먮쫫?쇰줈 ?ㅺ퀎?⑸땲??',
       iconKey: 'globe',
       imageUrl: '',
     },
@@ -102,18 +107,18 @@ const LEGACY_ABOUT_CONTENT = {
   processSteps: [
     {
       step: '01',
-      title: '문의 수집',
-      description: '고객의 요청 범위를 빠르게 파악해 필요한 자료와 다음 액션을 정리합니다.',
+      title: '臾몄쓽 ?섏쭛',
+      description: '怨좉컼???붿껌 踰붿쐞瑜?鍮좊Ⅴ寃??뚯븙???꾩슂???먮즺? ?ㅼ쓬 ?≪뀡???뺣━?⑸땲??',
     },
     {
       step: '02',
-      title: '운영 설계',
-      description: '행사 운영 범위, 안내 구조, 협업 포인트를 실제 실행 관점에서 정리합니다.',
+      title: '?댁쁺 ?ㅺ퀎',
+      description: '?됱궗 ?댁쁺 踰붿쐞, ?덈궡 援ъ“, ?묒뾽 ?ъ씤?몃? ?ㅼ젣 ?ㅽ뻾 愿?먯뿉???뺣━?⑸땲??',
     },
     {
       step: '03',
-      title: '실행과 회고',
-      description: '행사 운영 후 결과와 개선 포인트를 남겨 반복 가능한 운영 체계를 만듭니다.',
+      title: '?ㅽ뻾怨??뚭퀬',
+      description: '?됱궗 ?댁쁺 ??寃곌낵? 媛쒖꽑 ?ъ씤?몃? ?④꺼 諛섎났 媛?ν븳 ?댁쁺 泥닿퀎瑜?留뚮벊?덈떎.',
     },
   ],
 } as const;
@@ -133,11 +138,11 @@ function normalizeLegacyHeaderChildPath(parentPath: string, childPath: string, c
   const normalizedChildLabel = normalizeMenuLabel(childLabel);
 
   if (normalizedParentPath === '/resources' && normalizedChildPath.startsWith('/resources#')) {
-    if (normalizedChildLabel.includes('소식')) {
+    if (normalizedChildLabel.includes('?뚯떇')) {
       return '/resources/notices';
     }
 
-    if (normalizedChildLabel.includes('자료')) {
+    if (normalizedChildLabel.includes('?먮즺')) {
       return '/resources/files';
     }
 
@@ -145,20 +150,20 @@ function normalizeLegacyHeaderChildPath(parentPath: string, childPath: string, c
   }
 
   if (normalizedParentPath === '/about') {
-    if (normalizedChildPath === '/about#about-identity' || normalizedChildLabel.includes('회사개요') || normalizedChildLabel.includes('브랜드소개')) {
+    if (normalizedChildPath === '/about#about-identity' || normalizedChildLabel.includes('?뚯궗媛쒖슂') || normalizedChildLabel.includes('釉뚮옖?쒖냼媛?')) {
       return '/about/overview';
     }
 
     if (
       normalizedChildPath === '/about#about-strengths' ||
       normalizedChildPath === '/about#about-strength' ||
-      normalizedChildLabel.includes('강점소개') ||
-      normalizedChildLabel.includes('사업영역')
+      normalizedChildLabel.includes('媛뺤젏?뚭컻') ||
+      normalizedChildLabel.includes('?ъ뾽?곸뿭')
     ) {
       return '/about/business';
     }
 
-    if (normalizedChildPath === '/about#about-process' || normalizedChildLabel.includes('운영프로세스')) {
+    if (normalizedChildPath === '/about#about-process' || normalizedChildLabel.includes('?댁쁺?꾨줈?몄뒪')) {
       return '/about/process';
     }
   }
@@ -240,10 +245,10 @@ function inferName(user: User, fallback?: string) {
 
   const email = normalizeEmail(user.email);
   if (!email) {
-    return '관리자';
+    return '愿由ъ옄';
   }
 
-  return email.split('@')[0] || '관리자';
+  return email.split('@')[0] || '愿由ъ옄';
 }
 
 function inferProvider(user: User, fallback?: AdminProvider): AdminProvider {
@@ -286,11 +291,11 @@ function mapAdminUser(user: User, profile?: AdminProfileDoc): AdminUser {
 
 function mapAdminProfileToUser(id: string, profile?: AdminProfileDoc): AdminUser {
   const email = normalizeEmail(profile?.email);
-  const name = String(profile?.name || email.split('@')[0] || '관리자').trim();
+  const name = String(profile?.name || email.split('@')[0] || '愿由ъ옄').trim();
 
   return {
     id,
-    name: name || '관리자',
+    name: name || '愿由ъ옄',
     email,
     provider: profile?.provider === 'google' ? 'google' : 'password',
     createdAt: String(profile?.createdAt || nowIso()),
@@ -302,14 +307,14 @@ function mapFirebaseAuthError(error: unknown, fallback: string) {
   const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : '';
 
   const messages: Record<string, string> = {
-    'auth/email-already-in-use': '이미 등록된 관리자 이메일입니다.',
-    'auth/invalid-email': '올바른 이메일 형식이 아닙니다.',
-    'auth/missing-password': '비밀번호를 입력해 주세요.',
-    'auth/weak-password': '비밀번호는 8자 이상으로 설정해 주세요.',
-    'auth/invalid-credential': '이메일 또는 비밀번호가 올바르지 않습니다.',
-    'auth/user-not-found': '이메일 또는 비밀번호가 올바르지 않습니다.',
-    'auth/wrong-password': '이메일 또는 비밀번호가 올바르지 않습니다.',
-    'auth/popup-closed-by-user': 'Google 로그인 창이 닫혀 인증이 취소되었습니다.',
+    'auth/email-already-in-use': '?대? ?깅줉??愿由ъ옄 ?대찓?쇱엯?덈떎.',
+    'auth/invalid-email': '?щ컮瑜??대찓???뺤떇???꾨떃?덈떎.',
+    'auth/missing-password': '鍮꾨?踰덊샇瑜??낅젰??二쇱꽭??',
+    'auth/weak-password': '鍮꾨?踰덊샇??8???댁긽?쇰줈 ?ㅼ젙??二쇱꽭??',
+    'auth/invalid-credential': '?대찓???먮뒗 鍮꾨?踰덊샇媛 ?щ컮瑜댁? ?딆뒿?덈떎.',
+    'auth/user-not-found': '?대찓???먮뒗 鍮꾨?踰덊샇媛 ?щ컮瑜댁? ?딆뒿?덈떎.',
+    'auth/wrong-password': '?대찓???먮뒗 鍮꾨?踰덊샇媛 ?щ컮瑜댁? ?딆뒿?덈떎.',
+    'auth/popup-closed-by-user': 'Google 濡쒓렇??李쎌씠 ?ロ? ?몄쬆??痍⑥냼?섏뿀?듬땲??',
   };
 
   return messages[code] || fallback;
@@ -319,10 +324,10 @@ function mapFirebaseStorageError(error: unknown, fallback: string) {
   const code = getFirebaseErrorCode(error);
 
   const messages: Record<string, string> = {
-    'storage/unauthorized': '이미지 업로드 권한이 없습니다. 다시 로그인하거나 관리자 승인 상태를 확인해 봐.',
-    'storage/canceled': '이미지 업로드가 취소되었습니다.',
-    'storage/invalid-format': '지원하지 않는 파일 형식입니다.',
-    'storage/quota-exceeded': '스토리지 업로드 한도를 초과했습니다.',
+    'storage/unauthorized': '?대?吏 ?낅줈??沅뚰븳???놁뒿?덈떎. ?ㅼ떆 濡쒓렇?명븯嫄곕굹 愿由ъ옄 ?뱀씤 ?곹깭瑜??뺤씤??遊?',
+    'storage/canceled': '?대?吏 ?낅줈?쒓? 痍⑥냼?섏뿀?듬땲??',
+    'storage/invalid-format': '吏?먰븯吏 ?딅뒗 ?뚯씪 ?뺤떇?낅땲??',
+    'storage/quota-exceeded': '?ㅽ넗由ъ? ?낅줈???쒕룄瑜?珥덇낵?덉뒿?덈떎.',
   };
 
   return messages[code] || fallback;
@@ -347,21 +352,21 @@ async function uploadAdminStorageObject(user: User, page: string, file: File, co
   const storage = getFirebaseStorage();
   const storageRef = ref(storage, `admin-assets/${user.uid}/${safePage}/${Date.now()}-${safeName}`);
 
-  const executeUpload = async (forceRefresh = false) => {
-    await user.getIdToken(forceRefresh);
+  const executeUpload = () => {
     return uploadBytes(storageRef, file, {
       contentType,
     });
   };
 
   try {
-    return await executeUpload(false);
+    return await executeUpload();
   } catch (error) {
     if (getFirebaseErrorCode(error) !== 'storage/unauthorized') {
       throw error;
     }
 
-    return executeUpload(true);
+    await user.getIdToken(true);
+    return executeUpload();
   }
 }
 
@@ -407,6 +412,38 @@ async function ensureAdminProfile(user: User, profilePatch?: Partial<AdminProfil
   return profile;
 }
 
+async function getApprovedAdminProfileForUpload(user: User) {
+  const now = Date.now();
+  const cached = approvedAdminProfileCache.get(user.uid);
+
+  if (cached && cached.expiresAt > now) {
+    assertApprovedAdminProfile(cached.profile);
+    return cached.profile;
+  }
+
+  const db = getFirebaseDb();
+  const adminRef = doc(db, COLLECTIONS.admins, user.uid);
+  const snapshot = await getDoc(adminRef);
+
+  if (snapshot.exists()) {
+    const profile = snapshot.data() as AdminProfileDoc;
+    assertApprovedAdminProfile(profile);
+    approvedAdminProfileCache.set(user.uid, {
+      profile,
+      expiresAt: now + APPROVED_ADMIN_PROFILE_CACHE_TTL_MS,
+    });
+    return profile;
+  }
+
+  const profile = await ensureAdminProfile(user);
+  assertApprovedAdminProfile(profile);
+  approvedAdminProfileCache.set(user.uid, {
+    profile,
+    expiresAt: now + APPROVED_ADMIN_PROFILE_CACHE_TTL_MS,
+  });
+  return profile;
+}
+
 function parseInquiry(id: string, data: Record<string, unknown>): Inquiry {
   const statusRaw = String(data.status || 'new') as InquiryStatus;
   const status = VALID_STATUSES.has(statusRaw) ? statusRaw : 'new';
@@ -427,7 +464,7 @@ function parseInquiry(id: string, data: Record<string, unknown>): Inquiry {
 async function getSignedInAdminUser(options?: { requireApproved?: boolean }) {
   const user = await waitForAuthUser();
   if (!user) {
-    throw new Error('관리자 인증이 필요합니다.');
+    throw new Error('愿由ъ옄 ?몄쬆???꾩슂?⑸땲??');
   }
 
   const requireApproved = options?.requireApproved !== false;
@@ -446,7 +483,7 @@ export async function submitInquiry(input: InquiryInput): Promise<Inquiry> {
   const message = String(input.message || '').trim();
 
   if (!organizationName || !contactName || !email || !message) {
-    throw new Error('기관명, 담당자명, 이메일, 문의 내용은 필수입니다.');
+    throw new Error('湲곌?紐? ?대떦?먮챸, ?대찓?? 臾몄쓽 ?댁슜? ?꾩닔?낅땲??');
   }
 
   const payload = {
@@ -485,11 +522,11 @@ export async function updateInquiryStatus(
   await getSignedInAdminUser();
 
   if (!id) {
-    throw new Error('잘못된 문의 ID입니다.');
+    throw new Error('?섎せ??臾몄쓽 ID?낅땲??');
   }
 
   if (!VALID_STATUSES.has(status)) {
-    throw new Error('허용되지 않은 상태값입니다.');
+    throw new Error('?덉슜?섏? ?딆? ?곹깭媛믪엯?덈떎.');
   }
 
   const db = getFirebaseDb();
@@ -503,7 +540,7 @@ export async function updateInquiryStatus(
 
   const updated = await getDoc(ref);
   if (!updated.exists()) {
-    throw new Error('문의 정보를 찾을 수 없습니다.');
+    throw new Error('臾몄쓽 ?뺣낫瑜?李얠쓣 ???놁뒿?덈떎.');
   }
 
   return parseInquiry(updated.id, updated.data() as Record<string, unknown>);
@@ -515,11 +552,11 @@ export async function signUpAdmin(name: string, email: string, password: string)
   const trimmedPassword = String(password || '').trim();
 
   if (!trimmedName || !trimmedEmail || !trimmedPassword) {
-    throw new Error('이름, 이메일, 비밀번호를 모두 입력해 주세요.');
+    throw new Error('?대쫫, ?대찓?? 鍮꾨?踰덊샇瑜?紐⑤몢 ?낅젰??二쇱꽭??');
   }
 
   if (trimmedPassword.length < 8) {
-    throw new Error('비밀번호는 8자 이상이어야 합니다.');
+    throw new Error('鍮꾨?踰덊샇??8???댁긽?댁뼱???⑸땲??');
   }
 
   try {
@@ -545,7 +582,7 @@ export async function signUpAdmin(name: string, email: string, password: string)
     if (error instanceof Error && error.message === ADMIN_APPROVAL_PENDING_MESSAGE) {
       throw error;
     }
-    throw new Error(mapFirebaseAuthError(error, '관리자 회원가입에 실패했습니다.'));
+    throw new Error(mapFirebaseAuthError(error, '愿由ъ옄 ?뚯썝媛?낆뿉 ?ㅽ뙣?덉뒿?덈떎.'));
   }
 }
 
@@ -554,7 +591,7 @@ export async function logInAdmin(email: string, password: string): Promise<Admin
   const trimmedPassword = String(password || '').trim();
 
   if (!trimmedEmail || !trimmedPassword) {
-    throw new Error('이메일과 비밀번호를 입력해 주세요.');
+    throw new Error('?대찓?쇨낵 鍮꾨?踰덊샇瑜??낅젰??二쇱꽭??');
   }
 
   try {
@@ -576,7 +613,7 @@ export async function logInAdmin(email: string, password: string): Promise<Admin
       await signOut(getFirebaseAuth());
       throw error;
     }
-    throw new Error(mapFirebaseAuthError(error, '관리자 로그인에 실패했습니다.'));
+    throw new Error(mapFirebaseAuthError(error, '愿由ъ옄 濡쒓렇?몄뿉 ?ㅽ뙣?덉뒿?덈떎.'));
   }
 }
 
@@ -587,7 +624,7 @@ export async function logInAdminWithGoogle(credential: string): Promise<AdminAut
 
     if (!user) {
       if (!credential) {
-        throw new Error('Google 로그인 토큰을 확인할 수 없습니다.');
+        throw new Error('Google 濡쒓렇???좏겙???뺤씤?????놁뒿?덈떎.');
       }
 
       const googleCredential = GoogleAuthProvider.credential(credential);
@@ -610,7 +647,7 @@ export async function logInAdminWithGoogle(credential: string): Promise<AdminAut
       await signOut(getFirebaseAuth());
       throw error;
     }
-    throw new Error(mapFirebaseAuthError(error, 'Google 로그인에 실패했습니다.'));
+    throw new Error(mapFirebaseAuthError(error, 'Google 濡쒓렇?몄뿉 ?ㅽ뙣?덉뒿?덈떎.'));
   }
 }
 
@@ -633,11 +670,11 @@ export async function updateAdminApproval(adminId: string, approved: boolean, _a
   const currentAdmin = await getSignedInAdminUser();
 
   if (!adminId) {
-    throw new Error('잘못된 관리자 ID입니다.');
+    throw new Error('?섎せ??愿由ъ옄 ID?낅땲??');
   }
 
   if (currentAdmin.id === adminId && !approved) {
-    throw new Error('현재 로그인한 관리자는 승인 해제할 수 없습니다.');
+    throw new Error('?꾩옱 濡쒓렇?명븳 愿由ъ옄???뱀씤 ?댁젣?????놁뒿?덈떎.');
   }
 
   const db = getFirebaseDb();
@@ -645,7 +682,7 @@ export async function updateAdminApproval(adminId: string, approved: boolean, _a
   const snapshot = await getDoc(ref);
 
   if (!snapshot.exists()) {
-    throw new Error('관리자 계정을 찾을 수 없습니다.');
+    throw new Error('愿由ъ옄 怨꾩젙??李얠쓣 ???놁뒿?덈떎.');
   }
 
   await updateDoc(ref, {
@@ -693,14 +730,14 @@ export function normalizeSiteData(data: Record<string, unknown> | null | undefin
     const defaultHeaderLabelMap = new Map(
       defaultSiteData.content.menus.headerItems.map((item) => [normalizeMenuLabel(item.label), item]),
     );
-    defaultHeaderLabelMap.set('자료실', defaultSiteData.content.menus.headerItems.find((item) => normalizeMenuPath(item.path) === '/resources')!);
+    defaultHeaderLabelMap.set('?먮즺??', defaultSiteData.content.menus.headerItems.find((item) => normalizeMenuPath(item.path) === '/resources')!);
 
     const headerItems = normalized.content.menus.headerItems
       .map((item) => {
         const normalizedPath = normalizeMenuPath(item.path);
         const normalizedLabel = normalizeMenuLabel(item.label);
         const hasLegacyResourceChildren = item.children.some((child) => String(child.path || '').startsWith('/resources#'));
-        const isLegacyResourceMenu = normalizedPath === '/resources' && (hasLegacyResourceChildren || item.label === '자료실');
+        const isLegacyResourceMenu = normalizedPath === '/resources' && (hasLegacyResourceChildren || item.label === '?먮즺??');
         const canonicalItem =
           defaultHeaderLabelMap.get(normalizedLabel) ||
           defaultHeaderMap.get(normalizedPath) ||
@@ -812,16 +849,20 @@ export function normalizeSiteData(data: Record<string, unknown> | null | undefin
         title: String(normalized.copy.home.heroTitle || '').trim(),
         description: String(normalized.copy.home.heroDescription || '').trim(),
         imageUrl: String(normalized.content.home.heroImageUrl || '').trim(),
+        mobileImageUrl: '',
+        linkUrl: '',
       },
-    ].filter((item) => item.title || item.description || item.imageUrl);
+    ].filter((item) => item.title || item.description || item.imageUrl || item.mobileImageUrl);
     const normalizedHeroSlides = Array.isArray(normalized.content.home.heroSlides)
       ? normalized.content.home.heroSlides
           .map((item) => ({
             title: String(item?.title || '').trim(),
             description: String(item?.description || '').trim(),
             imageUrl: String(item?.imageUrl || '').trim(),
+            mobileImageUrl: String(item?.mobileImageUrl || '').trim(),
+            linkUrl: String(item?.linkUrl || '').trim(),
           }))
-          .filter((item) => item.title || item.description || item.imageUrl)
+          .filter((item) => item.title || item.description || item.imageUrl || item.mobileImageUrl || item.linkUrl)
       : [];
     const heroSlides =
       hasPersistedHeroSlides && normalizedHeroSlides.length > 0
@@ -831,7 +872,9 @@ export function normalizeSiteData(data: Record<string, unknown> | null | undefin
           : normalizedHeroSlides.length > 0
             ? normalizedHeroSlides
             : defaultSiteData.content.home.heroSlides;
-    const primaryHeroImageUrl = String(heroSlides[0]?.imageUrl || normalized.content.home.heroImageUrl || '').trim();
+    const primaryHeroImageUrl = String(
+      heroSlides[0]?.imageUrl || heroSlides[0]?.mobileImageUrl || normalized.content.home.heroImageUrl || '',
+    ).trim();
 
     const aboutCopy = {
       ...normalized.copy.about,
@@ -951,7 +994,7 @@ export function normalizeSiteData(data: Record<string, unknown> | null | undefin
         resources: {
           ...normalized.content.resources,
           notices: normalized.content.resources.notices.map((item) => ({
-            category: String(item.category || '일반'),
+            category: String(item.category || '?쇰컲'),
             ...item,
           })),
         },
@@ -981,6 +1024,129 @@ function sanitizeFileName(fileName: string) {
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
     .toLowerCase();
+}
+
+function replaceFileNameExtension(fileName: string, extension: string) {
+  const safeExtension = extension.startsWith('.') ? extension : `.${extension}`;
+  const index = fileName.lastIndexOf('.');
+
+  if (index <= 0) {
+    return `${fileName}${safeExtension}`;
+  }
+
+  return `${fileName.slice(0, index)}${safeExtension}`;
+}
+
+function loadImageElement(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const imageElement = new Image();
+    imageElement.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(imageElement);
+    };
+    imageElement.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('?대?吏 ?붿퐫?⑹뿉 ?ㅽ뙣?덉뒿?덈떎.'));
+    };
+    imageElement.src = objectUrl;
+  });
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => resolve(blob), type, quality);
+  });
+}
+
+async function optimizeImageFileForUpload(file: File) {
+  const lowerType = String(file.type || '').toLowerCase();
+  const isSvg = lowerType === 'image/svg+xml';
+  const canOptimizeInBrowser = typeof window !== 'undefined' && typeof document !== 'undefined' && typeof URL !== 'undefined';
+
+  if (!canOptimizeInBrowser || isSvg) {
+    return {
+      file,
+      contentType: file.type || 'application/octet-stream',
+    };
+  }
+
+  try {
+    const sourceImage = await loadImageElement(file);
+    const width = Math.max(1, sourceImage.naturalWidth || sourceImage.width);
+    const height = Math.max(1, sourceImage.naturalHeight || sourceImage.height);
+    const longestEdge = Math.max(width, height);
+    const resizeRatio = longestEdge > IMAGE_UPLOAD_MAX_DIMENSION ? IMAGE_UPLOAD_MAX_DIMENSION / longestEdge : 1;
+    const targetWidth = Math.max(1, Math.round(width * resizeRatio));
+    const targetHeight = Math.max(1, Math.round(height * resizeRatio));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+
+    const context = canvas.getContext('2d');
+    if (!context) {
+      return {
+        file,
+        contentType: file.type || 'application/octet-stream',
+      };
+    }
+
+    context.drawImage(sourceImage, 0, 0, targetWidth, targetHeight);
+
+    const candidateQualities = [0.86, 0.8, 0.74, 0.68];
+    let selectedBlob: Blob | null = null;
+
+    for (const quality of candidateQualities) {
+      const blob = await canvasToBlob(canvas, 'image/webp', quality);
+      if (!blob) {
+        continue;
+      }
+
+      if (!selectedBlob || blob.size < selectedBlob.size) {
+        selectedBlob = blob;
+      }
+
+      if (blob.size <= IMAGE_UPLOAD_TARGET_BYTES) {
+        selectedBlob = blob;
+        break;
+      }
+    }
+
+    if (!selectedBlob) {
+      return {
+        file,
+        contentType: file.type || 'application/octet-stream',
+      };
+    }
+
+    // 원본이 이미 최적화된 WebP 포맷인 경우에만 원본을 유지 (자동 WebP 변환 강제)
+    const isOriginalWebp = lowerType === 'image/webp';
+    const shouldKeepOriginal = isOriginalWebp && file.size <= selectedBlob.size && resizeRatio === 1;
+    
+    if (shouldKeepOriginal) {
+      return {
+        file,
+        contentType: file.type || 'application/octet-stream',
+      };
+    }
+
+    const compressedFileName = replaceFileNameExtension(sanitizeFileName(file.name || 'image'), '.webp');
+    const optimizedFile = new File([selectedBlob], compressedFileName, {
+      type: 'image/webp',
+      lastModified: Date.now(),
+    });
+
+    return {
+      file: optimizedFile,
+      contentType: optimizedFile.type,
+    };
+  } catch {
+    return {
+      file,
+      contentType: file.type || 'application/octet-stream',
+    };
+  }
 }
 
 export async function fetchSiteData(): Promise<SiteData> {
@@ -1053,7 +1219,7 @@ export async function uploadAdminFile(file: File, page: string, _adminToken: str
   if (!user) {
     throw new Error('관리자 인증이 필요합니다.');
   }
-  const profile = await ensureAdminProfile(user);
+  const profile = await getApprovedAdminProfileForUpload(user);
   assertApprovedAdminProfile(profile);
 
   if (!file) {
@@ -1073,7 +1239,7 @@ export async function uploadAdminImage(file: File, page: string, _adminToken: st
   if (!user) {
     throw new Error('관리자 인증이 필요합니다.');
   }
-  const profile = await ensureAdminProfile(user);
+  const profile = await getApprovedAdminProfileForUpload(user);
   assertApprovedAdminProfile(profile);
 
   if (!file) {
@@ -1085,7 +1251,8 @@ export async function uploadAdminImage(file: File, page: string, _adminToken: st
   }
 
   try {
-    const snapshot = await uploadAdminStorageObject(user, page, file, file.type);
+    const optimized = await optimizeImageFileForUpload(file);
+    const snapshot = await uploadAdminStorageObject(user, page, optimized.file, optimized.contentType);
     return getDownloadURL(snapshot.ref);
   } catch (error) {
     throw new Error(mapFirebaseStorageError(error, '이미지 업로드에 실패했습니다.'));
@@ -1100,9 +1267,9 @@ export async function deleteAdminImage(imageUrl: string, _adminToken: string): P
 
   const user = await waitForAuthUser();
   if (!user) {
-    throw new Error('관리자 인증이 필요합니다.');
+    throw new Error('愿由ъ옄 ?몄쬆???꾩슂?⑸땲??');
   }
-  const profile = await ensureAdminProfile(user);
+  const profile = await getApprovedAdminProfileForUpload(user);
   assertApprovedAdminProfile(profile);
 
   const isFirebaseStorageUrl =
@@ -1131,6 +1298,8 @@ export async function deleteAdminImage(imageUrl: string, _adminToken: string): P
       return;
     }
 
-    throw new Error(mapFirebaseStorageError(error, '이미지 삭제에 실패했습니다.'));
+    throw new Error(mapFirebaseStorageError(error, '?대?吏 ??젣???ㅽ뙣?덉뒿?덈떎.'));
   }
 }
+
+

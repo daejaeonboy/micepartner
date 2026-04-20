@@ -298,6 +298,7 @@ const imageFieldLabels: Record<string, string> = {
   ctaImageUrl: 'CTA 이미지',
   coverImageUrl: '커버 이미지',
   imageUrl: '이미지',
+  mobileImageUrl: '모바일 이미지',
   logoUrl: '로고 이미지',
   bankLogoUrl: '은행 로고',
 };
@@ -350,6 +351,7 @@ const textFieldLabels: Record<string, string> = {
   detail: '세부 설명',
   title: '제목',
   description: '설명',
+  linkUrl: '배너 클릭 링크',
   step: '단계',
   primaryCtaLabel: '기본 버튼 문구',
   primaryCtaHref: '기본 버튼 링크',
@@ -530,6 +532,14 @@ function getTextFieldLabel(segment: string) {
   return textFieldLabels[segment] || segment;
 }
 
+function getImageFieldLabel(segment: string, path: ImagePathSegment[]) {
+  if (segment === 'imageUrl' && path.includes('heroSlides')) {
+    return 'PC 이미지';
+  }
+
+  return imageFieldLabels[segment] || segment;
+}
+
 function getLabelSegments(label: string) {
   return label.split(' / ').map((item) => item.trim()).filter(Boolean);
 }
@@ -639,7 +649,7 @@ function collectImageFields(
         {
           page,
           path: [...path, key],
-          label: [...labelParts, imageFieldLabels[key]].join(' / '),
+          label: [...labelParts, getImageFieldLabel(key, [...path, key])].join(' / '),
           value: child,
         },
       ];
@@ -758,9 +768,11 @@ function pathsEqual(left: ImagePathSegment[], right: ImagePathSegment[]) {
 
 function createEmptyHeroSlide() {
   return {
-    title: '새 히어로 슬라이드',
-    description: '이 슬라이드에 노출할 설명을 입력해 주세요.',
+    title: '',
+    description: '',
     imageUrl: '',
+    mobileImageUrl: '',
+    linkUrl: '',
   };
 }
 
@@ -934,6 +946,10 @@ function getImageAspectRatioHint(page: EditableSectionKey, path: ImagePathSegmen
 
   if (pathKey.includes('logoUrl') || pathKey.includes('bankLogoUrl')) {
     return '권장 비율 3:1, 최소 900x300';
+  }
+
+  if (pathKey.includes('heroSlides') && pathKey.endsWith('mobileImageUrl')) {
+    return '권장 비율 4:5, 최소 1200x1500';
   }
 
   if (pathKey.includes('heroImageUrl') || pathKey.includes('heroSlides') || pathKey.includes('ctaImageUrl')) {

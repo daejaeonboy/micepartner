@@ -133,13 +133,15 @@ export function MembersPage() {
                   className="member-card__image-box"
                   aria-label={`${company.name} 상세 페이지 이동`}
                 >
-                  {company.logoUrl ? (
-                    <img src={company.logoUrl} alt={company.name} />
-                  ) : (
-                    <div className="member-card__no-image">
-                      <span>{company.name}</span>
-                    </div>
-                  )}
+                  <div className="member-card__image-inner">
+                    {company.logoUrl ? (
+                      <img src={company.logoUrl} alt={company.name} />
+                    ) : (
+                      <div className="member-card__no-image">
+                        <span>{company.name}</span>
+                      </div>
+                    )}
+                  </div>
                 </Link>
                 <div className="member-card__content">
                   <h3 className="member-card__title">{company.name}</h3>

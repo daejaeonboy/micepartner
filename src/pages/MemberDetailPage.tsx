@@ -192,14 +192,11 @@ export function MemberDetailPage() {
 
           <article className="notice-detail-card">
             <div className="notice-detail-card__body">
-              {/* 로고/대표 이미지를 본문 최상단에 배치 */}
               {company.logoUrl && (
-                <div className="notice-detail-card__inline-image" style={{ marginBottom: '40px' }}>
-                  <img 
-                    src={company.logoUrl} 
-                    alt={company.name} 
-                    style={{ width: '100%', display: 'block', border: '1px solid #f1f5f9' }} 
-                  />
+                <div className="member-detail-card__image-box">
+                  <div className="member-detail-card__image-inner">
+                    <img src={company.logoUrl} alt={company.name} />
+                  </div>
                 </div>
               )}
 

@@ -26,6 +26,9 @@ export const defaultSiteContent: SitePageContent = {
           '대전과 충청권 현장 환경을 이해한 운영 파트너로서 행사 홈페이지, 등록 운영, 참가자 안내, 현장 진행까지 하나의 흐름으로 연결합니다.',
         imageUrl:
           'https://images.unsplash.com/photo-1540575861501-7c0351a773a5?auto=format&fit=crop&w=2000&q=80',
+        mobileImageUrl:
+          'https://images.unsplash.com/photo-1540575861501-7c0351a773a5?auto=format&fit=crop&w=2000&q=80',
+        linkUrl: '',
       },
       {
         title: '브랜드와 목적에 맞는 운영 구조 설계',
@@ -33,6 +36,9 @@ export const defaultSiteContent: SitePageContent = {
           '설명회, 포럼, 기업 행사, 공공 프로젝트까지 목적에 맞는 운영 범위를 먼저 정리하고 실제 실행 가능한 구조로 제안합니다.',
         imageUrl:
           'https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=2000&q=80',
+        mobileImageUrl:
+          'https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=2000&q=80',
+        linkUrl: '',
       },
       {
         title: '현장 데이터와 결과까지 이어지는 관리',
@@ -40,6 +46,9 @@ export const defaultSiteContent: SitePageContent = {
           '참가 신청부터 체크인, 현장 응대, 결과 정리까지 운영 데이터를 남겨 다음 프로젝트에도 이어질 수 있는 기반을 만듭니다.',
         imageUrl:
           'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=2000&q=80',
+        mobileImageUrl:
+          'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=2000&q=80',
+        linkUrl: '',
       },
     ],
     heroPanelStatus: '운영 중인 행사',

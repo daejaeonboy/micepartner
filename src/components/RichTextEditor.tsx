@@ -1,5 +1,5 @@
 import { Bold, ImagePlus } from 'lucide-react';
-import { useEffect, useId, useRef, useState, type CSSProperties, type ChangeEvent } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties, type ChangeEvent, type DragEvent, type MouseEvent } from 'react';
 import { normalizeRichTextHtml } from '../lib/richText';
 
 type RichTextEditorProps = {
@@ -7,6 +7,8 @@ type RichTextEditorProps = {
   value: string;
   onChange: (next: string) => void;
   onUploadImage?: (file: File) => Promise<string>;
+  selectedCoverImageUrl?: string;
+  onSelectCoverImage?: (imageUrl: string) => void;
   minHeight?: number;
 };
 
@@ -224,6 +226,8 @@ export function RichTextEditor({
   value,
   onChange,
   onUploadImage,
+  selectedCoverImageUrl = '',
+  onSelectCoverImage,
   minHeight = 520,
 }: RichTextEditorProps) {
   const editorRef = useRef<HTMLDivElement | null>(null);
@@ -231,9 +235,37 @@ export function RichTextEditor({
   const fileInputId = useId();
   const [imageUrlInput, setImageUrlInput] = useState('');
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isDragOverSurface, setIsDragOverSurface] = useState(false);
   const [editorError, setEditorError] = useState('');
   const [selectedTextColor, setSelectedTextColor] = useState('#444444');
   const [selectedLineHeight, setSelectedLineHeight] = useState('1.9');
+
+  const normalizeImageUrl = (url: string) => {
+    const trimmedUrl = url.trim();
+    if (!trimmedUrl) {
+      return '';
+    }
+
+    try {
+      return new URL(trimmedUrl, window.location.origin).toString();
+    } catch {
+      return trimmedUrl;
+    }
+  };
+
+  const syncSelectedCoverImageMarker = (editor: HTMLElement) => {
+    const normalizedSelectedCoverImageUrl = normalizeImageUrl(selectedCoverImageUrl || '');
+
+    Array.from(editor.querySelectorAll<HTMLImageElement>('img')).forEach((imageElement) => {
+      const isSelected = normalizedSelectedCoverImageUrl !== '' && normalizeImageUrl(imageElement.src) === normalizedSelectedCoverImageUrl;
+
+      if (isSelected) {
+        imageElement.setAttribute('data-cover-selected', 'true');
+      } else {
+        imageElement.removeAttribute('data-cover-selected');
+      }
+    });
+  };
 
   useEffect(() => {
     const editor = editorRef.current;
@@ -245,7 +277,18 @@ export function RichTextEditor({
     if (editor.innerHTML !== normalizedValue) {
       editor.innerHTML = normalizedValue;
     }
+
+    syncSelectedCoverImageMarker(editor);
   }, [value]);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) {
+      return;
+    }
+
+    syncSelectedCoverImageMarker(editor);
+  }, [selectedCoverImageUrl]);
 
   useEffect(() => {
     const handleSelectionChange = () => {
@@ -421,8 +464,45 @@ export function RichTextEditor({
   const insertHtml = (html: string) => {
     restoreSelection();
     document.execCommand('insertHTML', false, html);
+    const editor = editorRef.current;
+    if (editor) {
+      syncSelectedCoverImageMarker(editor);
+    }
     saveSelection();
     emitChange();
+  };
+
+  const setSelectionFromPoint = (clientX: number, clientY: number) => {
+    const editor = editorRef.current;
+    if (!editor) {
+      return;
+    }
+
+    let range: Range | null = null;
+    const selection = window.getSelection();
+    if (!selection) {
+      return;
+    }
+
+    if (typeof document.caretRangeFromPoint === 'function') {
+      range = document.caretRangeFromPoint(clientX, clientY);
+    } else if (typeof document.caretPositionFromPoint === 'function') {
+      const caretPosition = document.caretPositionFromPoint(clientX, clientY);
+      if (caretPosition) {
+        const nextRange = document.createRange();
+        nextRange.setStart(caretPosition.offsetNode, caretPosition.offset);
+        nextRange.collapse(true);
+        range = nextRange;
+      }
+    }
+
+    if (!range || !editor.contains(range.startContainer)) {
+      return;
+    }
+
+    selection.removeAllRanges();
+    selection.addRange(range);
+    selectionRangeRef.current = range.cloneRange();
   };
 
   const insertImageUrl = () => {
@@ -441,6 +521,14 @@ export function RichTextEditor({
     const files = Array.from(event.target.files || []);
     event.target.value = '';
 
+    if (files.length === 0) {
+      return;
+    }
+
+    await uploadImagesAndInsert(files);
+  };
+
+  const uploadImagesAndInsert = async (files: File[]) => {
     if (files.length === 0 || !onUploadImage) {
       return;
     }
@@ -449,18 +537,80 @@ export function RichTextEditor({
     setEditorError('');
 
     try {
-      const uploadedUrls: string[] = [];
-
-      for (const file of files) {
-        uploadedUrls.push(await onUploadImage(file));
-      }
+      const uploadedUrls = await Promise.all(files.map((file) => onUploadImage(file)));
 
       insertHtml(uploadedUrls.map((uploadedUrl) => `<p><img src="${uploadedUrl}" alt="" /></p>`).join(''));
     } catch (error) {
       setEditorError(error instanceof Error ? error.message : '본문 이미지 업로드에 실패했어.');
     } finally {
       setIsUploadingImage(false);
+      setIsDragOverSurface(false);
     }
+  };
+
+  const handleSurfaceDragOver = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = onUploadImage ? 'copy' : 'none';
+    setIsDragOverSurface(true);
+
+    const editor = editorRef.current;
+    if (!editor) {
+      return;
+    }
+
+    const rect = editor.getBoundingClientRect();
+    const edgeThreshold = 64;
+    if (event.clientY < rect.top + edgeThreshold) {
+      editor.scrollTop -= 28;
+    } else if (event.clientY > rect.bottom - edgeThreshold) {
+      editor.scrollTop += 28;
+    }
+  };
+
+  const handleSurfaceDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    const relatedTarget = event.relatedTarget;
+    if (relatedTarget instanceof Node && event.currentTarget.contains(relatedTarget)) {
+      return;
+    }
+
+    setIsDragOverSurface(false);
+  };
+
+  const handleSurfaceDrop = async (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsDragOverSurface(false);
+
+    if (!onUploadImage) {
+      return;
+    }
+
+    const files = Array.from(event.dataTransfer.files || []).filter((file) => file.type.startsWith('image/'));
+    if (files.length === 0) {
+      return;
+    }
+
+    focusEditor();
+    setSelectionFromPoint(event.clientX, event.clientY);
+    await uploadImagesAndInsert(files);
+  };
+
+  const handleSurfaceClick = (event: MouseEvent<HTMLDivElement>) => {
+    const imageElement = (event.target as HTMLElement).closest('img');
+    if (!(imageElement instanceof HTMLImageElement) || !onSelectCoverImage) {
+      return;
+    }
+
+    const selectedImageUrl = imageElement.getAttribute('src') || imageElement.src;
+    if (!selectedImageUrl) {
+      return;
+    }
+
+    onSelectCoverImage(selectedImageUrl);
+    const editor = editorRef.current;
+    if (editor) {
+      syncSelectedCoverImageMarker(editor);
+    }
+    setEditorError('본문 이미지가 대표 이미지로 선택됐어.');
   };
 
   return (
@@ -481,11 +631,11 @@ export function RichTextEditor({
               {preset.label}
             </button>
           ))}
-          <span className="rich-text-editor__toolbar-caption">선택한 문단 기준</span>
+          <span className="rich-text-editor__toolbar-caption">선택된 문단 기준</span>
         </div>
 
         <div className="rich-text-editor__toolbar-group">
-          <span className="rich-text-editor__toolbar-title">글자</span>
+          <span className="rich-text-editor__toolbar-title">글꼴</span>
           <button
             type="button"
             className="rich-text-editor__toolbar-button rich-text-editor__toolbar-button--icon"
@@ -530,7 +680,7 @@ export function RichTextEditor({
               </option>
             ))}
           </select>
-          <span className="rich-text-editor__toolbar-caption">선택한 문단 기준</span>
+          <span className="rich-text-editor__toolbar-caption">선택된 문단 기준</span>
         </div>
 
         <div className="rich-text-editor__toolbar-group">
@@ -588,7 +738,7 @@ export function RichTextEditor({
           </button>
           <label htmlFor={fileInputId} className="rich-text-editor__toolbar-button rich-text-editor__toolbar-button--upload">
             <ImagePlus size={16} />
-            {isUploadingImage ? '업로드 중...' : '업로드 삽입'}
+            {isUploadingImage ? '업로드 중..' : '업로드 삽입'}
           </label>
           <input
             id={fileInputId}
@@ -603,18 +753,24 @@ export function RichTextEditor({
 
       <div
         ref={editorRef}
-        className="rich-text-editor__surface"
+        className={`rich-text-editor__surface${isDragOverSurface ? ' is-drag-over' : ''}`}
         contentEditable
         suppressContentEditableWarning
         onInput={emitChange}
         onMouseUp={saveSelection}
         onKeyUp={saveSelection}
         onFocus={saveSelection}
+        onClick={handleSurfaceClick}
+        onDragOver={handleSurfaceDragOver}
+        onDragLeave={handleSurfaceDragLeave}
+        onDrop={(event) => {
+          void handleSurfaceDrop(event);
+        }}
         style={{ minHeight }}
       />
 
       <p className="rich-text-editor__help">
-        `타이틀`, `본문` 프리셋으로 빠르게 맞추고, 필요하면 글자 크기, 글자색, 행간을 추가 조절하면 돼.
+        `타이틀`, `본문` 프리셋으로 빠르게 맞추고, 필요하면 글씨 크기, 글자색, 행간을 추가 조절하면 돼.
       </p>
 
       {editorError ? <p className="form-feedback form-feedback--error">{editorError}</p> : null}

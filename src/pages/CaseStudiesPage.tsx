@@ -125,7 +125,11 @@ export function CaseStudiesPage() {
           <div className="members-grid">
             {paginatedEntries.map((item) => (
               <motion.article key={item.slug} {...fadeUp} className="member-card">
-                <Link to={`/cases/${item.slug}`} className="member-card__image-box" aria-label={`${item.title} 상세 페이지 이동`}>
+                <Link
+                  to={`/cases/${item.slug}`}
+                  className="member-card__image-box member-card__image-box--cover"
+                  aria-label={`${item.title} 상세 페이지 이동`}
+                >
                   {item.coverImageUrl ? (
                     <img src={item.coverImageUrl} alt={item.title} />
                   ) : (

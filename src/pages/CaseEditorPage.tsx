@@ -371,6 +371,13 @@ export function CaseEditorPage() {
                     }))
                   }
                   onUploadImage={handleInlineBodyImageUpload}
+                  selectedCoverImageUrl={formState.coverImageUrl}
+                  onSelectCoverImage={(imageUrl) =>
+                    setFormState((current) => ({
+                      ...current,
+                      coverImageUrl: imageUrl,
+                    }))
+                  }
                   minHeight={600}
                 />
               </div>
