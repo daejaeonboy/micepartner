@@ -4244,11 +4244,12 @@ a {
 .home-hero-slider__nav {
   position: absolute;
   right: 40px;
+  top: 36px;
   bottom: 36px;
   left: 40px;
   z-index: 10;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
   pointer-events: none;
@@ -4264,6 +4265,7 @@ a {
 
 .home-hero-slider__actions {
   display: flex;
+  align-self: flex-end;
 }
 
 .home-hero-slider__dot {
@@ -4486,7 +4488,8 @@ a {
   }
 
   .home-hero-slider__nav {
-    bottom: 20px;
+    top: 20px;
+    bottom: auto;
   }
 
   .home-hero-slider__dot {
@@ -4996,10 +4999,12 @@ a {
 
   /* 모바일 히어로 네비게이션(점, 화살표) 디자인 최적화 */
   .home-hero-slider__nav {
-    bottom: 24px;
-    left: 0;
-    right: 0;
-    justify-content: center; /* 중앙 정렬 */
+    top: 24px;
+    bottom: auto;
+    left: 20px;
+    right: 20px;
+    align-items: flex-start;
+    justify-content: flex-start;
   }
 
   .home-hero-slider__dots {
